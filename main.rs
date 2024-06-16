@@ -1,14 +1,14 @@
+use ansi_term::Style;
 use rand::seq::SliceRandom;
-use rand::Rng;
+use rand::{random, Rng};
 use std::io::{self};
 use std::process;
 use std::thread;
 use std::time::Duration;
-use ansi_term::Style;
 
 macro_rules! italics {
     ($text:expr) => {{
-        let styled_text = Style::new().italic().paint($text).to_string();
+        let styled_text = Style::new().italic().paint($text);
         println!("{}", styled_text);
     }};
 }
@@ -18,32 +18,33 @@ fn main() {
     let mut dealer_health: u8 = 3;
     play(&mut dealer_health, &mut player_health);
 }
-fn dealer_turn(shell: bool, dealer_health: &mut u8, player_health: &mut u8, turn_owner: &mut bool, perfect: bool) {
-    let choice: u8 = if perfect {
-        match shell {
-            true => 8,
-            false => 7,
-        }
+fn dealer_turn(
+    shell: bool,
+    dealer_health: &mut u8,
+    player_health: &mut u8,
+    turn_owner: &mut bool,
+    perfect: bool,
+) {
+    let choice: bool = if perfect {
+        shell
     } else {
-        rand::thread_rng().gen_range(7..=8)
+        random()
     };
-    //7 means dealer shoots self, 8 means dealer shoots player
-
+    //true means dealer shoots you, false means dealer shoots itself
     match choice {
-        7 => {
+        true => {
             println!("The dealer points the gun at its face.");
             thread::sleep(Duration::from_secs(1));
             if shell {
                 println!("Dealer shot themselves.");
                 *dealer_health -= 1;
-                
             } else {
                 italics!("click");
                 println!("Extra turn for dealer.");
                 *turn_owner = !*turn_owner;
             }
         }
-        8 => {
+        false => {
             println!("The dealer points the gun at your face.");
             thread::sleep(Duration::from_secs(1));
             if shell {
@@ -53,16 +54,9 @@ fn dealer_turn(shell: bool, dealer_health: &mut u8, player_health: &mut u8, turn
                 italics!("click");
             }
         }
-        _ => {println!("Failure in dealer RNG")
-        
-        }
-
     }
     thread::sleep(Duration::from_secs(1));
 }
-
-
-
 
 fn play(dealer_health: &mut u8, player_health: &mut u8) {
     loop {
@@ -74,16 +68,22 @@ fn play(dealer_health: &mut u8, player_health: &mut u8) {
         //true means it is the players turn, false the dealer's turn.
         let mut turn_owner: bool = true;
         let mut turn = 1;
-        //if perfect is on, the dealer will make optimal decisions every round. 
+        //if perfect is on, the dealer will make optimal decisions every round.
         let perfect = false;
-        
+
         for shell in shell_vec {
             println!("\nRound {turn}.");
-            if turn_owner {  
+            if turn_owner {
                 your_turn(shell, dealer_health, player_health, &mut turn_owner);
                 check_life(player_health, dealer_health);
             } else {
-                dealer_turn(shell, dealer_health, player_health, &mut turn_owner, perfect);
+                dealer_turn(
+                    shell,
+                    dealer_health,
+                    player_health,
+                    &mut turn_owner,
+                    perfect,
+                );
                 check_life(player_health, dealer_health);
             }
             turn += 1;
