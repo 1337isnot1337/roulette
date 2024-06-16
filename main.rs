@@ -32,7 +32,7 @@ fn dealer_turn(
     };
     //true means dealer shoots you, false means dealer shoots itself
     match choice {
-        true => {
+        false => {
             println!("The dealer points the gun at its face.");
             thread::sleep(Duration::from_secs(1));
             if shell {
@@ -44,7 +44,7 @@ fn dealer_turn(
                 *turn_owner = !*turn_owner;
             }
         }
-        false => {
+        true => {
             println!("The dealer points the gun at your face.");
             thread::sleep(Duration::from_secs(1));
             if shell {
