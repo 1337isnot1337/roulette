@@ -9,7 +9,7 @@ use ansi_term::Style;
 macro_rules! italics {
     ($text:expr) => {{
         let styled_text = Style::new().italic().paint($text).to_string();
-        print!("{}", styled_text);
+        println!("{}", styled_text);
     }};
 }
 
@@ -38,7 +38,7 @@ fn dealer_turn(shell: bool, dealer_health: &mut u8, player_health: &mut u8, turn
                 *dealer_health -= 1;
                 
             } else {
-                italics!("click\n");
+                italics!("click");
                 println!("Extra turn for dealer.");
                 *turn_owner = !*turn_owner;
             }
