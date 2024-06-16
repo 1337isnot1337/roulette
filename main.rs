@@ -4,6 +4,14 @@ use std::io::{self};
 use std::process;
 use std::thread;
 use std::time::Duration;
+use ansi_term::Style;
+
+macro_rules! italics {
+    ($text:expr) => {{
+        let styled_text = Style::new().italic().paint($text).to_string();
+        print!("{}", styled_text);
+    }};
+}
 
 fn main() {
     let mut player_health: u8 = 3;
@@ -24,22 +32,25 @@ fn dealer_turn(shell: bool, dealer_health: &mut u8, player_health: &mut u8, turn
     match choice {
         7 => {
             println!("The dealer points the gun at its face.");
+            thread::sleep(Duration::from_secs(1));
             if shell {
                 println!("Dealer shot themselves.");
                 *dealer_health -= 1;
                 
             } else {
-                println!("Dealer's gun clicked. Extra turn for dealer.");
+                italics!("click\n");
+                println!("Extra turn for dealer.");
                 *turn_owner = !*turn_owner;
             }
         }
         8 => {
             println!("The dealer points the gun at your face.");
+            thread::sleep(Duration::from_secs(1));
             if shell {
                 println!("Dealer shot you.");
                 *player_health -= 1;
             } else {
-                println!("Dealer's gun clicked.");
+                italics!("click");
             }
         }
         _ => {println!("Failure in dealer RNG")
@@ -57,7 +68,7 @@ fn play(dealer_health: &mut u8, player_health: &mut u8) {
     loop {
         let live: u8 = rand::thread_rng().gen_range(2..=5);
         let blanks: u8 = rand::thread_rng().gen_range(2..=3);
-        println!("----------------\n{live} lives and {blanks} blanks are loaded into the shotgun.");
+        println!("----------------\n{live} lives and {blanks} blanks are loaded into the shotgun.\n----------------");
         let shell_vec = load_shells(live, blanks);
         //turn owner is used to switch between turns for player/dealer.
         //true means it is the players turn, false the dealer's turn.
@@ -67,7 +78,7 @@ fn play(dealer_health: &mut u8, player_health: &mut u8) {
         let perfect = false;
         
         for shell in shell_vec {
-            println!("----------------\nRound {turn}.");
+            println!("\nRound {turn}.");
             if turn_owner {  
                 your_turn(shell, dealer_health, player_health, &mut turn_owner);
                 check_life(player_health, dealer_health);
@@ -93,31 +104,36 @@ fn your_turn(shell: bool, dealer_health: &mut u8, player_health: &mut u8, turn_o
     match choice.to_lowercase().as_str().trim() {
         "self" => {
             println!("You point the gun at your face.");
+            thread::sleep(Duration::from_secs(1));
             if shell {
                 println!("You shot yourself.");
                 *player_health -= 1;
             } else {
-                println!("Click. Extra turn for you.");
+                italics!("click");
+                println!("Extra turn for you.");
                 *turn_owner = !*turn_owner;
             }
         }
         "dealer" => {
             println!("You point the gun towards the dealer.");
+            thread::sleep(Duration::from_secs(1));
             if shell {
                 println!("You shot the dealer.");
                 *dealer_health -= 1;
             } else {
-                println!("click.");
+                italics!("click");
             }
         }
         _ => {
             println!("Okay, you it is.");
             println!("You point the gun at your face.");
+            thread::sleep(Duration::from_secs(1));
             if shell {
                 println!("You shot yourself.");
                 *player_health -= 1;
             } else {
-                println!("Click. Extra turn for you.");
+                italics!("click");
+                println!("Extra turn for you.");
                 *turn_owner = !*turn_owner;
             }
         }
