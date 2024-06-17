@@ -1,6 +1,6 @@
 use ansi_term::Style;
 use rand::seq::SliceRandom;
-use rand::{random, Rng};
+use rand::Rng;
 use std::io::{self};
 use std::process;
 use std::thread;
@@ -14,11 +14,14 @@ macro_rules! italics {
 }
 
 fn main() {
+    clearscreen::clear().expect("Failed to clear screen");
     let mut player_health: u8 = 3;
     let mut dealer_health: u8 = 3;
     play(&mut dealer_health, &mut player_health);
+    clearscreen::clear().expect("Failed to clear screen");
 }
 fn dealer_turn(
+    current_bullets_vec: Vec<bool>,
     shell: bool,
     dealer_health: &mut u8,
     player_health: &mut u8,
@@ -28,7 +31,19 @@ fn dealer_turn(
     let choice: bool = if perfect {
         shell
     } else {
-        random()
+        //logic for the dealer's choice
+        let mut lives = 0;
+        let mut blanks = 0;
+
+        for item in current_bullets_vec {
+            if item {
+                lives += 1;
+            } else {
+                blanks += 1;
+            }
+        }
+        //if there are more lives than blanks, choose to shoot player. Vice versa and such.
+        lives >= blanks
     };
     //true means dealer shoots you, false means dealer shoots itself
     match choice {
@@ -61,7 +76,7 @@ fn dealer_turn(
 fn play(dealer_health: &mut u8, player_health: &mut u8) {
     loop {
         let live: u8 = rand::thread_rng().gen_range(2..=5);
-        let blanks: u8 = rand::thread_rng().gen_range(2..=3);
+        let blanks: u8 = rand::thread_rng().gen_range(2..=5);
         println!("----------------\n{live} lives and {blanks} blanks are loaded into the shotgun.\n----------------");
         let shell_vec = load_shells(live, blanks);
         //turn owner is used to switch between turns for player/dealer.
@@ -70,14 +85,18 @@ fn play(dealer_health: &mut u8, player_health: &mut u8) {
         let mut turn = 1;
         //if perfect is on, the dealer will make optimal decisions every round.
         let perfect = false;
+        let iter_shell_vec = shell_vec.clone();
 
-        for shell in shell_vec {
-            println!("\nRound {turn}.");
+        for shell in iter_shell_vec {
+            //current bullets vec holds the bullets currently loaded
+            let current_bullets_vec: Vec<bool> = shell_vec[turn - 1..].to_vec();
+            println!("{}", Style::new().bold().paint(format!("Round {turn}")));
             if turn_owner {
                 your_turn(shell, dealer_health, player_health, &mut turn_owner);
                 check_life(player_health, dealer_health);
             } else {
                 dealer_turn(
+                    current_bullets_vec,
                     shell,
                     dealer_health,
                     player_health,
@@ -96,9 +115,9 @@ fn play(dealer_health: &mut u8, player_health: &mut u8) {
 fn your_turn(shell: bool, dealer_health: &mut u8, player_health: &mut u8, turn_owner: &mut bool) {
     let mut choice = String::new();
     println!(
-        "You have {player_health} lives remaining. The dealer has {dealer_health} lives remaining."
+        "You have {player_health} lives remaining. The dealer has {dealer_health} lives remaining.\nShoot self or dealer?" 
     );
-    println!("Shoot Self or Dealer?");
+
     io::stdin().read_line(&mut choice).unwrap();
 
     match choice.to_lowercase().as_str().trim() {
@@ -126,6 +145,7 @@ fn your_turn(shell: bool, dealer_health: &mut u8, player_health: &mut u8, turn_o
         }
         _ => {
             println!("Okay, you it is.");
+            thread::sleep(Duration::from_secs(1));
             println!("You point the gun at your face.");
             thread::sleep(Duration::from_secs(1));
             if shell {
@@ -133,6 +153,7 @@ fn your_turn(shell: bool, dealer_health: &mut u8, player_health: &mut u8, turn_o
                 *player_health -= 1;
             } else {
                 italics!("click");
+                thread::sleep(Duration::from_secs(1));
                 println!("Extra turn for you.");
                 *turn_owner = !*turn_owner;
             }
