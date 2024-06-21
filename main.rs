@@ -28,9 +28,9 @@ fn picked_to_stored_dealer(
     dealer_stored_items: &mut [ItemEnum; 8],
 ) -> [ItemEnum; 8] {
     // iterate through each item in dealer_stored_items
-    for (item, dealer_item) in dealer_stored_items.iter_mut().enumerate() {
+    for dealer_item in dealer_stored_items.iter_mut() {
         // check if the dealer_stored_item is Nothing and picked_items_vec_dealer isnt empty
-        if *dealer_item == ItemEnum::Nothing && !picked_items_vec_dealer.is_empty() {
+        if { *dealer_item == ItemEnum::Nothing } & { !picked_items_vec_dealer.is_empty() } {
             // replace the Nothing with first item from picked_items_vec_dealer
             *dealer_item = picked_items_vec_dealer.remove(0);
         }
@@ -47,7 +47,7 @@ fn main() {
     loop {
         // add code for new items
         pick_items(&mut player_stored_items);
-        
+
         dealer_stored_items = picked_to_stored_dealer(generate_items(4), &mut dealer_stored_items);
 
         let live: u8 = rand::thread_rng().gen_range(2..=5);
@@ -65,6 +65,9 @@ fn main() {
             //current bullets vec holds the bullets currently loaded
             let current_bullets_vec: Vec<bool> = shell_vec[turn - 1..].to_vec();
             println!("{}", Style::new().bold().paint(format!("Turn {turn}\n")));
+            println!(
+                "You have {player_health} lives remaining. The dealer has {dealer_health} lives remaining."
+            );        
             check_life(player_health, dealer_health);
             if turn_owner {
                 your_turn(
@@ -94,10 +97,10 @@ fn main() {
 }
 
 fn generate_items(len: usize) -> Vec<ItemEnum> {
-    let saws: u8 = rand::thread_rng().gen_range(1..=3);
-    let beers: u8 = rand::thread_rng().gen_range(1..6);
-    let cigs: u8 = rand::thread_rng().gen_range(1..4);
-    let mag_glass: u8 = rand::thread_rng().gen_range(1..4);
+    let saws: u8 = rand::thread_rng().gen_range(2..=6);
+    let beers: u8 = rand::thread_rng().gen_range(2..12);
+    let cigs: u8 = rand::thread_rng().gen_range(2..8);
+    let mag_glass: u8 = rand::thread_rng().gen_range(2..8);
     let mut items_vec: Vec<ItemEnum> = Vec::new();
     for _ in 0..saws {
         items_vec.push(ItemEnum::Saws);
@@ -129,17 +132,16 @@ fn pick_items(player_stored_items: &mut [ItemEnum; 8]) {
     let mut i = 0;
 
     while amount_to_pick > 0 {
-        println!("You got {}, where are you going to place it?", items_vec[i]); 
+        println!("You got {}, where are you going to place it?", items_vec[i]);
         let selection = Select::new()
             .with_prompt("Store the item")
             .report(false)
             .items(player_stored_items)
             .interact()
-            .unwrap(); 
+            .unwrap();
 
         player_stored_items[selection] = items_vec[i]; // replace item in player_stored_items with items_vec[i]
 
-        i += 1; 
         match items_vec[i] {
             ItemEnum::Cigs => {
                 handle_items(ItemEnum::Cigs, &mut items_vec);
@@ -159,6 +161,7 @@ fn pick_items(player_stored_items: &mut [ItemEnum; 8]) {
             }
             ItemEnum::Nothing => todo!(),
         }
+        i += 1;
     }
 }
 
@@ -167,7 +170,7 @@ fn dealer_item_use(
     dealer_stored_items: &mut [ItemEnum; 8],
     dealer_health: &mut i8,
     shell: bool,
-    damage: &mut i8,
+    damage: &mut u8,
 ) -> bool {
     let mut knowledge_of_shell = false;
     match item_type {
@@ -227,9 +230,7 @@ fn dealer_turn(
     // future goal: add logic for having dealer pick certain items
     let mut shell_knowledge = false;
     'dealer_use_items: loop {
-        
         if dealer_stored_items.contains(&ItemEnum::Cigs) & { *dealer_health < 3 } {
-            
             dealer_item_use(
                 ItemEnum::Cigs,
                 dealer_stored_items,
@@ -284,9 +285,7 @@ fn dealer_turn(
         println!("The dealer points the gun at your face.");
         thread::sleep(Duration::from_secs(1));
         if shell {
-            play_audio("audio/live.mp3");
             turn_screen_red();
-
             println!("Dealer shot you.");
             *player_health -= 1;
         } else {
@@ -297,9 +296,7 @@ fn dealer_turn(
         println!("The dealer points the gun at its face.");
         thread::sleep(Duration::from_secs(1));
         if shell {
-            play_audio("audio/live.mp3");
             turn_screen_red();
-
             println!("Dealer shot themselves.");
             *dealer_health -= 1;
         } else {
@@ -416,10 +413,6 @@ fn your_turn(
         break;
     }
 
-    println!(
-        "You have {player_health} lives remaining. The dealer has {dealer_health} lives remaining."
-    );
-
     let targets: Vec<TargetEnum> = vec![TargetEnum::Player, TargetEnum::Dealer];
     let selection = Select::new()
         .with_prompt("Shoot self or Dealer")
@@ -454,7 +447,6 @@ fn resolve_user_choice(
             println!("You point the gun at your face.");
             thread::sleep(Duration::from_secs(1));
             if shell {
-                play_audio("audio/live.mp3");
                 turn_screen_red();
 
                 println!("You shot yourself.");
@@ -471,7 +463,6 @@ fn resolve_user_choice(
             println!("You point the gun towards the dealer.");
             thread::sleep(Duration::from_secs(1));
             if shell {
-                play_audio("audio/live.mp3");
                 turn_screen_red();
 
                 println!("You shot the dealer.");
@@ -551,12 +542,14 @@ fn play_audio(path: &str) {
 fn turn_screen_red() {
     // Execute crossterm commands to clear screen and set red background
     let mut chunk = String::new();
-    let mut space = 10000;
+    let mut space = 9000;
+    play_audio("audio/live.mp3");
     while space > 0 {
         chunk.push(' ');
-        play_audio("audio/live.mp3");
+
         space -= 1;
     }
+
     execute!(
         io::stdout(),
         Clear(ClearType::All),          // Clear the screen
