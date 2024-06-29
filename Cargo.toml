@@ -8,7 +8,7 @@ ansi_term = "0.12.1"
 clearscreen = "3.0.0"
 crossterm = "0.27.0"
 ctrlc = "3.4.4"
-dialoguer = "0.11.0"
+dialoguer = { version = "0.11.0", features = ["fuzzy-select"] }
 mp3-duration = "0.1.10"
 rand = "0.8.5"
 rodio = "0.18.1"
