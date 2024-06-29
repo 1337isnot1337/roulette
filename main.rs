@@ -1,4 +1,3 @@
-extern crate ctrlc;
 use ansi_term::Style;
 use core::fmt;
 use crossterm::{
@@ -6,14 +5,10 @@ use crossterm::{
     style::{Color, Print, ResetColor, SetBackgroundColor},
     terminal::{Clear, ClearType},
 };
-use dialoguer::Select;
+use dialoguer::FuzzySelect;
 use rand::seq::SliceRandom;
 use rand::Rng;
-use rodio::{source::Source, Decoder, OutputStream};
-use std::fs::File;
-use std::io::BufReader;
 use std::io::{self, Write};
-use std::path::Path;
 use std::process;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -109,57 +104,63 @@ fn main() {
 
     while running.load(Ordering::SeqCst) {
         clearscreen::clear().expect("Failed to clear screen");
-        let player_health: i8 = 3;
-        let dealer_health: i8 = 3;
-        let mut dealer_stored_items: [ItemEnum; 8] = [ItemEnum::Nothing; 8];
-        let mut player_stored_items: [ItemEnum; 8] = [ItemEnum::Nothing; 8];
+        match play_screen() {
+            Selection::Play => {
+                let (player_health, dealer_health) = (3i8, 3i8);
+                let (mut dealer_stored_items, mut player_stored_items) =
+                    ([ItemEnum::Nothing; 8], [ItemEnum::Nothing; 8]);
 
-        // add code for new items
-        pick_items(&mut player_stored_items);
+                // add code for new items
+                pick_items(&mut player_stored_items);
 
-        dealer_stored_items = picked_to_stored_dealer(generate_items(4), &mut dealer_stored_items);
-        let mut live;
-        let mut blanks;
-        loop {
-            live = rand::thread_rng().gen_range(1..=4);
-            blanks = rand::thread_rng().gen_range(1..=4);
-            if (live + blanks) > 2 {
-                break;
+                dealer_stored_items =
+                    picked_to_stored_dealer(generate_items(4), &mut dealer_stored_items);
+                let mut live;
+                let mut blanks;
+                loop {
+                    live = rand::thread_rng().gen_range(1..=4);
+                    blanks = rand::thread_rng().gen_range(1..=4);
+                    if (live + blanks) > 2 {
+                        break;
+                    }
+                }
+                println!("----------------\n{live} lives and {blanks} blanks are loaded into the shotgun.\n----------------\n");
+                let shell_vec = load_shells(live, blanks);
+                //turn owner is used to switch between turns for player/dealer.
+                //true means it is the players turn, false the dealer's turn.
+                let mut turn_owner: bool = true;
+                let mut turn = 1;
+                //if perfect is on, the dealer will make optimal decisions every round (knowing the bullet)
+                let perfect = false;
+
+                for shell in &shell_vec {
+                    let mut game_info = GameInfo {
+                        shell: *shell,
+                        dealer_health,
+                        player_health,
+                        turn_owner,
+                        player_stored_items,
+                        dealer_stored_items,
+                    };
+                    //current bullets vec holds the bullets currently loaded
+                    let current_bullets_vec: Vec<bool> = shell_vec[turn - 1..].to_vec();
+                    println!("{}", Style::new().bold().paint(format!("Turn {turn}\n")));
+                    println!(
+                        "You have {player_health} lives remaining. The dealer has {dealer_health} lives remaining."
+                    );
+                    check_life(player_health, dealer_health);
+                    if turn_owner {
+                        your_turn(&mut game_info);
+                    } else {
+                        dealer_turn(current_bullets_vec, perfect, &mut game_info);
+                    }
+                    turn += 1;
+                    turn_owner = !turn_owner;
+                    thread::sleep(Duration::from_secs(1));
+                }
             }
-        }
-        println!("----------------\n{live} lives and {blanks} blanks are loaded into the shotgun.\n----------------\n");
-        let shell_vec = load_shells(live, blanks);
-        //turn owner is used to switch between turns for player/dealer.
-        //true means it is the players turn, false the dealer's turn.
-        let mut turn_owner: bool = true;
-        let mut turn = 1;
-        //if perfect is on, the dealer will make optimal decisions every round (knowing the bullet)
-        let perfect = false;
-
-        for shell in &shell_vec {
-            let mut game_info = GameInfo {
-                shell: *shell,
-                dealer_health,
-                player_health,
-                turn_owner,
-                player_stored_items,
-                dealer_stored_items,
-            };
-            //current bullets vec holds the bullets currently loaded
-            let current_bullets_vec: Vec<bool> = shell_vec[turn - 1..].to_vec();
-            println!("{}", Style::new().bold().paint(format!("Turn {turn}\n")));
-            println!(
-                "You have {player_health} lives remaining. The dealer has {dealer_health} lives remaining."
-            );
-            check_life(player_health, dealer_health);
-            if turn_owner {
-                your_turn(&mut game_info);
-            } else {
-                dealer_turn(current_bullets_vec, perfect, &mut game_info);
-            }
-            turn += 1;
-            turn_owner = !turn_owner;
-            thread::sleep(Duration::from_secs(1));
+            Selection::Credits => credits(),
+            Selection::Help => help(),
         }
     }
 }
@@ -187,16 +188,10 @@ fn generate_items(len: usize) -> Vec<ItemEnum> {
         items_vec.push(ItemEnum::Handcuffs);
     }
     let mut rng = rand::thread_rng();
-    items_vec.as_mut_slice().shuffle(&mut rng);
-    items_vec.as_mut_slice().shuffle(&mut rng);
-    items_vec.as_mut_slice().shuffle(&mut rng);
-    items_vec.as_mut_slice().shuffle(&mut rng);
-    items_vec.as_mut_slice().shuffle(&mut rng);
-    items_vec.as_mut_slice().shuffle(&mut rng);
-    items_vec.as_mut_slice().shuffle(&mut rng);
-    items_vec.as_mut_slice().shuffle(&mut rng);
-    items_vec.as_mut_slice().shuffle(&mut rng);
-    items_vec.as_mut_slice().shuffle(&mut rng);
+    for _ in 0..10 {
+        items_vec.as_mut_slice().shuffle(&mut rng);
+    }
+
     //yes ik its overkill but this is my code not urs
     let trimmed_vec = items_vec.iter().take(len).copied().collect::<Vec<_>>();
 
@@ -215,7 +210,7 @@ fn pick_items(player_stored_items: &mut [ItemEnum; 8]) {
 
     while amount_to_pick > 0 {
         println!("You got {}, where are you going to place it?", items_vec[i]);
-        let selection = Select::new()
+        let selection = FuzzySelect::new()
             .with_prompt("Store the item")
             .report(false)
             .items(player_stored_items)
@@ -410,7 +405,7 @@ fn dealer_turn(current_bullets_vec: Vec<bool>, perfect: bool, game_info: &mut Ga
             println!("Dealer shot you.");
             game_info.player_health -= 1;
         } else {
-            play_audio("audio/blank.mp3");
+            //play_audio("audio/blank.mp3");
             italics!("click");
         }
     } else {
@@ -421,7 +416,7 @@ fn dealer_turn(current_bullets_vec: Vec<bool>, perfect: bool, game_info: &mut Ga
             println!("Dealer shot themselves.");
             game_info.dealer_health -= 1;
         } else {
-            play_audio("audio/blank.mp3");
+            //play_audio("audio/blank.mp3");
             italics!("click");
             println!("Extra turn for dealer.");
             game_info.turn_owner = !game_info.turn_owner;
@@ -435,7 +430,7 @@ fn dealer_turn(current_bullets_vec: Vec<bool>, perfect: bool, game_info: &mut Ga
 fn your_turn(game_info: &mut GameInfo) {
     let mut damage: i8 = 1;
     'item_selection_loop: loop {
-        let selection = Select::new()
+        let selection = FuzzySelect::new()
             .with_prompt("Pick an item to use")
             .items(&game_info.player_stored_items)
             .interact()
@@ -494,13 +489,15 @@ fn your_turn(game_info: &mut GameInfo) {
                 remove_no_item(&mut game_info.player_stored_items, ItemEnum::Beers);
                 remove_no_item(&mut game_info.player_stored_items, ItemEnum::Nothing);
             }
-            ItemEnum::Nothing => remove_no_item(&mut game_info.player_stored_items, ItemEnum::Nothing),
+            ItemEnum::Nothing => {
+                remove_no_item(&mut game_info.player_stored_items, ItemEnum::Nothing)
+            }
         }
         break;
     }
 
     let targets: [TargetEnum; 2] = [TargetEnum::Player, TargetEnum::Dealer];
-    let selection = Select::new()
+    let selection = FuzzySelect::new()
         .with_prompt("Shoot self or Dealer")
         .items(&targets)
         .interact()
@@ -538,7 +535,7 @@ fn resolve_user_choice(
                 println!("You shot yourself.");
                 *player_health -= 1;
             } else {
-                play_audio("audio/blank.mp3");
+                //play_audio("audio/blank.mp3");
                 italics!("click");
                 thread::sleep(Duration::from_secs(1));
                 println!("Extra turn for you.");
@@ -555,7 +552,7 @@ fn resolve_user_choice(
 
                 *dealer_health -= damage;
             } else {
-                play_audio("audio/blank.mp3");
+                //play_audio("audio/blank.mp3");
                 italics!("click");
             }
         }
@@ -608,7 +605,7 @@ fn check_life(player_health: i8, dealer_health: i8) {
     );
 }
 
-fn play_audio(path: &str) {
+/*fn play_audio(path: &str) {
     // Clone path for use in the thread
     let path = path.to_string();
 
@@ -628,12 +625,13 @@ fn play_audio(path: &str) {
         thread::sleep(Duration::from_secs(duration_secs));
     });
 }
+*/
 
 fn turn_screen_red() {
     // Execute crossterm commands to clear screen and set red background
     let mut chunk = String::new();
     let mut space = 9000;
-    play_audio("audio/live.mp3");
+    //play_audio("audio/live.mp3");
     while space > 0 {
         chunk.push(' ');
 
@@ -653,4 +651,78 @@ fn turn_screen_red() {
     // Flush stdout to ensure color change is immediate
     io::stdout().flush().expect("Failed to flush stdout");
     clearscreen::clear().expect("Failed to clear screen");
+}
+
+
+fn credits() {
+    clearscreen::clear().expect("Failed to clear screen");
+    println!("All (I think) code made by 1337isnot1337 (or whatever my current github name is)");
+    thread::sleep(Duration::from_secs(5));
+    play_screen();
+
+}
+fn help() {
+    clearscreen::clear().expect("Failed to clear screen");
+    /*println!("How does Buckshot Roulette play?
+
+    Interestingly, this isn’t an action game. BR is a tabletop game where you enter the dingiest nightclub ever, see the gun getting loaded with a certain number of rounds in an unknown order, and hope for the best as you face off against the dealer. It’s not as simple as just a game of randomly taking turns, but, as with all things horror, it’s all best left unspoiled. Buckshot Roulette is rather original — as a video game, at least — but, if I’m to compare it to anything else out there, I’d go with saying it’s sure to please fans of Inscryption.
+    
+    A full playthrough will likely not take you more than 20 minutes — yes, even if you don’t blow yourself up.
+    
+    It plays just like a real tabletop game would, down to it featuring pretty much no interface clutter. All the information that you get, you get from the game.
+    
+    I assure you that even though the results of the game are unpredictable due to the random factor involved, the AI doesn’t know more than it should. The dealer is a very unsettling creature, but it plays fair.
+    
+    Even though this is an indie game through and through, developer Mark Klubnika warns that you must own what they call a “relatively modern” dedicated graphics card that features Vulkan support.
+    What are the items in Buckshot Roulette?
+    
+    Here are all of the items in Buckshot Roulette:
+    Handcuffs	Causes the dealer to skip his next turn
+    Hand Saw	Doubles the damage of your shotgun. Great combo with the Magnifying glass
+    Beer	Ejects the shell that’s in the chamber
+    Pills	Begins a subgame of “double or nothing”*
+    Cigarettes	heals one life point
+    Magnifying Glass	Allows you to examine the shell currently in the chamber
+    
+    If you take the pills, you’ll begin a game of double or nothing, which will introduce a new set of items. Let’s look into those:
+    Double Or Nothing items
+    Inverter	Reverses the effect of the shell currently in the chamber. A blank will turn into a live round and a live round turns into a blank.
+    Adrenaline	The player will steal an item from the dealer’s board and use it immediately
+    Burner phone	Will inform you about a random round in your stack
+    Expired medicine	40% chance of regaining two lives, 60% chance of losing one life
+    
+    You can get Buckshot Roulette for $2.99 on Steam, or you can get it from itch.io for $1.20 right here.");
+    */
+    thread::sleep(Duration::from_secs(5));
+    play_screen();
+
+}
+
+
+fn play_screen() -> Selection {
+    clearscreen::clear().expect("Failed to clear screen");
+    let options_vec: [Selection; 3] = [Selection::Play, Selection::Help, Selection::Credits];
+    let selection = FuzzySelect::new()
+        .with_prompt("What do you choose?")
+        .items(&options_vec)
+        .interact()
+        .unwrap();
+
+    options_vec[selection]
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Selection {
+    Play,
+    Help,
+    Credits,
+}
+impl fmt::Display for Selection {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let printable = match *self {
+            Selection::Play => "Play",
+            Selection::Help => "Help",
+            Selection::Credits => "Credits",
+        };
+        write!(f, "{printable}")
+    }
 }
