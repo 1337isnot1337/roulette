@@ -205,10 +205,8 @@ fn handle_items(item_enum_type: ItemEnum, items_vec: &mut Vec<ItemEnum>) {
 
 fn pick_items(player_stored_items: &mut [ItemEnum; 8]) {
     let mut items_vec = generate_items(8);
-    let mut amount_to_pick = 4;
-    let mut i = 0;
 
-    while amount_to_pick > 0 {
+    for _ in 0..4 {
         println!("You got {}, where are you going to place it?", items_vec[i]);
         let selection = FuzzySelect::new()
             .with_prompt("Store the item")
@@ -222,28 +220,22 @@ fn pick_items(player_stored_items: &mut [ItemEnum; 8]) {
         match items_vec[i] {
             ItemEnum::Cigs => {
                 handle_items(ItemEnum::Cigs, &mut items_vec);
-                amount_to_pick -= 1;
             }
             ItemEnum::Saws => {
                 handle_items(ItemEnum::Saws, &mut items_vec);
-                amount_to_pick -= 1;
             }
             ItemEnum::MagGlass => {
                 handle_items(ItemEnum::MagGlass, &mut items_vec);
-                amount_to_pick -= 1;
             }
             ItemEnum::Handcuffs => {
                 handle_items(ItemEnum::Handcuffs, &mut items_vec);
-                amount_to_pick -= 1;
             }
             ItemEnum::Beers => {
                 handle_items(ItemEnum::Beers, &mut items_vec);
-                amount_to_pick -= 1;
             }
 
             ItemEnum::Nothing => todo!(),
         }
-        i += 1;
     }
 }
 
