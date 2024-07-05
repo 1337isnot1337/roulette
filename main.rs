@@ -51,6 +51,7 @@ struct GameInfo {
     turn_owner: bool,
     player_stored_items: [ItemEnum; 8],
     dealer_stored_items: [ItemEnum; 8],
+    perfect: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -89,6 +90,11 @@ fn picked_to_stored_dealer(
     *dealer_stored_items
 }
 fn main() {
+    let perfect = false;
+    let Args: Vec<String> = env::args().collect();
+    if Args[1] == "--perfect" {
+         perfect = true
+    };
     // atomic boolean to track if sigint was received
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
@@ -130,8 +136,6 @@ fn main() {
                 //true means it is the players turn, false the dealer's turn.
                 let mut turn_owner: bool = true;
                 let mut turn = 1;
-                //if perfect is on, the dealer will make optimal decisions every round (knowing the bullet)
-                let perfect = false;
 
                 for shell in &shell_vec {
                     let mut game_info = GameInfo {
@@ -141,6 +145,7 @@ fn main() {
                         turn_owner,
                         player_stored_items,
                         dealer_stored_items,
+                        perfect,
                     };
                     //current bullets vec holds the bullets currently loaded
                     let current_bullets_vec: Vec<bool> = shell_vec[turn - 1..].to_vec();
@@ -152,7 +157,7 @@ fn main() {
                     if turn_owner {
                         your_turn(&mut game_info);
                     } else {
-                        dealer_turn(current_bullets_vec, perfect, &mut game_info);
+                        dealer_turn(current_bullets_vec, &mut game_info);
                     }
                     turn += 1;
                     turn_owner = !turn_owner;
@@ -297,7 +302,7 @@ fn dealer_item_use(
     knowledge_of_shell
 }
 
-fn dealer_turn(current_bullets_vec: Vec<bool>, perfect: bool, game_info: &mut GameInfo) {
+fn dealer_turn(current_bullets_vec: Vec<bool>, game_info: &mut GameInfo) {
     /*
     dealer item impl
      */
@@ -371,7 +376,7 @@ fn dealer_turn(current_bullets_vec: Vec<bool>, perfect: bool, game_info: &mut Ga
         break;
     }
 
-    let choice: bool = if perfect | shell_knowledge {
+    let choice: bool = if game_info.perfect | shell_knowledge {
         game_info.shell
     } else {
         //logic for the dealer's choice
