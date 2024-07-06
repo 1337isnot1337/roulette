@@ -154,6 +154,8 @@ fn main() {
                 //true means it is the players turn, false the dealer's turn.
                 let mut turn_owner: TargetEnum = TargetEnum::Player;
                 let mut turn = 1;
+                let mut player_extraturn = false;
+                let mut dealer_extraturn = false;
 
                 for shell in &shell_vec {
                     let mut game_info = GameInfo {
@@ -173,12 +175,12 @@ fn main() {
                     check_life(player_health, dealer_health);
                     match turn_owner {
                         TargetEnum::Player => {
-                            your_turn(&mut game_info);
-                            turn_owner = TargetEnum::Dealer;
+                            player_extraturn = your_turn(&mut game_info);
+                            if !player_extraturn {turn_owner = TargetEnum::Dealer};
                         }
                         TargetEnum::Dealer => {
-                            dealer_turn(current_bullets_vec, &mut game_info);
-                            turn_owner = TargetEnum::Player;
+                            dealer_extraturn = dealer_turn(current_bullets_vec, &mut game_info);
+                            if !dealer_extraturn {turn_owner = TargetEnum::Player};
                         }
                     }
                     turn += 1;
@@ -324,7 +326,7 @@ fn dealer_item_use(item_type: ItemEnum, game_info: &mut GameInfo, damage: &mut u
     knowledge_of_shell
 }
 
-fn dealer_turn(current_bullets_vec: Vec<bool>, game_info: &mut GameInfo) {
+fn dealer_turn(current_bullets_vec: Vec<bool>, game_info: &mut GameInfo) -> bool {
     let mut damage = 1;
     // future goal: add logic for having dealer pick certain items
     let mut shell_knowledge = false;
@@ -377,6 +379,7 @@ fn dealer_turn(current_bullets_vec: Vec<bool>, game_info: &mut GameInfo) {
         lives >= blanks
     };
     //true means dealer shoots you, false means dealer shoots itself
+    let mut extraturn = false; 
     if choice {
         println!("The dealer points the gun at your face.");
         thread::sleep(Duration::from_secs(1));
@@ -399,22 +402,16 @@ fn dealer_turn(current_bullets_vec: Vec<bool>, game_info: &mut GameInfo) {
             //play_audio("audio/blank.mp3");
             italics!("click");
             println!("Extra turn for dealer.");
-            match game_info.turn_owner {
-                TargetEnum::Player => {
-                    game_info.turn_owner = TargetEnum::Dealer;
-                }
-                TargetEnum::Dealer => {
-                    game_info.turn_owner = TargetEnum::Player;
-                }
-            }
+            extraturn = true;
         }
     }
 
     thread::sleep(Duration::from_secs(1));
     check_life(game_info.player_health, game_info.dealer_health);
+    extraturn
 }
 #[allow(clippy::too_many_lines)]
-fn your_turn(game_info: &mut GameInfo) {
+fn your_turn(game_info: &mut GameInfo) -> bool {
     let mut damage: i8 = 1;
     'item_selection_loop: loop {
         let selection = FuzzySelect::new()
@@ -544,7 +541,7 @@ fn your_turn(game_info: &mut GameInfo) {
 
     let choice = targets[selection];
 
-    resolve_user_choice(
+    let extraturn = resolve_user_choice(
         choice,
         game_info.shell,
         &mut game_info.player_health,
@@ -554,6 +551,7 @@ fn your_turn(game_info: &mut GameInfo) {
     );
     thread::sleep(Duration::from_secs(1));
     check_life(game_info.player_health, game_info.dealer_health);
+    extraturn
 }
 
 fn resolve_user_choice(
@@ -563,7 +561,8 @@ fn resolve_user_choice(
     dealer_health: &mut i8,
     mut turn_owner: TargetEnum,
     damage: i8,
-) {
+) -> bool {
+    let extraturn = false;
     match choice {
         TargetEnum::Player => {
             println!("You point the gun at your face.");
@@ -574,18 +573,11 @@ fn resolve_user_choice(
                 println!("You shot yourself.");
                 *player_health -= 1;
             } else {
-                //play_audio("audio/blank.mp3");
+                play_audio("blank.mp3");
                 italics!("click");
                 thread::sleep(Duration::from_secs(1));
                 println!("Extra turn for you.");
-                match turn_owner {
-                    TargetEnum::Player => {
-                        turn_owner = TargetEnum::Dealer;
-                    }
-                    TargetEnum::Dealer => {
-                        turn_owner = TargetEnum::Player;
-                    }
-                }
+                extraturn = true;
             }
         }
         TargetEnum::Dealer => {
@@ -603,6 +595,7 @@ fn resolve_user_choice(
             }
         }
     }
+    extraturn
 }
 
 fn remove_no_item(picked_items_vec: &mut [ItemEnum; 8], item_type: ItemEnum) {
@@ -618,9 +611,11 @@ fn load_shells(live: u8, blanks: u8) -> Vec<bool> {
     let mut shells: Vec<bool> = Vec::new();
     for _i in 0..blanks {
         shells.push(false);
+        play_audio("shell_push_sound");
     }
     for _i in 0..live {
         shells.push(true);
+        play_audio("shell_push_sound");
     }
     let mut rng = rand::thread_rng();
     shells.as_mut_slice().shuffle(&mut rng);
@@ -641,19 +636,15 @@ fn check_life(player_health: i8, dealer_health: i8) {
         io::stdout().flush().unwrap();
         process::exit(0);
     }
-    assert!(
-        dealer_health <= 3,
-        "somethings gone wrong, dealer hp overflowed?"
-    );
-    assert!(
-        player_health <= 3,
-        "somethings gone wrong, player hp overflowed?"
-    );
 }
 
-/*fn play_audio(path: &str) {
+fn play_audio(path: &str) {
     // Clone path for use in the thread
-    let path = path.to_string();
+
+    path = match fs::metadata("audio/{path}") {
+        Ok(_) => format!("audio/{path}"),
+        Err(_) => panic!("Audio file at path audio/{path} does not exist!"),
+    };
 
     // Spawn a new thread to play audio asynchronously
     thread::spawn(move || {
@@ -671,13 +662,13 @@ fn check_life(player_health: i8, dealer_health: i8) {
         thread::sleep(Duration::from_secs(duration_secs));
     });
 }
-*/
+
 
 fn turn_screen_red() {
     // Execute crossterm commands to clear screen and set red background
     let mut chunk = String::new();
     let mut space = 9000;
-    //play_audio("audio/live.mp3");
+    play_audio("live.mp3");
     while space > 0 {
         chunk.push(' ');
 
@@ -713,14 +704,14 @@ fn help() {
     clearscreen::clear().expect("Failed to clear screen");
     println!("Quick guide to Buckshot Roulette, command line edition.
 
-    Buckshot roulette is a complex twist on the simple 'game' of Russian Roulette. In it, you're pitted against a cold being— the dealer. A shotgun is placed in front of you; loaded with some lives, some blanks. It's up to you to kill the dealer. 
+    Buckshot roulette is a complex twist on the simple 'game' of Russian Roulette. In it, you're pitted against a cold beingâ the dealer. A shotgun is placed in front of you; loaded with some lives, some blanks. It's up to you to kill the dealer. 
 You go first. You have the option to A. Shoot the dealer or B. Shoot yourself. If you hit yourself with a blank, you get another turn. Simple. 
 To help you out, you get some items. The dealer gets them, too.
 
     Handcuffs	Causes the dealer to skip their next turn
     Hand Saw	Doubles the damage of your shotgun
     Beer	Ejects the shell that's in the chamber
-    Pills	Begins a subgame of “double or nothing”*
+    Pills	Begins a subgame of âdouble or nothingâ*
     Cigarettes	heals one life point
     Magnifying Glass	Allows you to examine the shell currently in the chamber
     
