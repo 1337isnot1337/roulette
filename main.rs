@@ -681,51 +681,49 @@ fn turn_screen_red() {
     clearscreen::clear().expect("Failed to clear screen");
 }
 
-
 fn credits() {
     clearscreen::clear().expect("Failed to clear screen");
-    println!("All (I think) code made by 1337isnot1337 (or whatever my current github name is)");
-    thread::sleep(Duration::from_secs(5));
+    println!("All (I think) code made by 1337isnot1337 (or whatever my current github name is). This code is protected by the GPL 3.0 License. It is open source of course; all code visible on my GitHub. If you have any problems with the code, or questions, fill out an issue on the GitHub. If you wish to contribute, send a pull request. Thank you. :3");
+    println!("Press enter to continue...");
+    io::stdout().flush().unwrap();
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).unwrap();
+    println!("Continuing...");
     play_screen();
 
 }
 fn help() {
     clearscreen::clear().expect("Failed to clear screen");
-    /*println!("How does Buckshot Roulette play?
+    println!("Quick guide to Buckshot Roulette, command line edition.
 
-    Interestingly, this isn’t an action game. BR is a tabletop game where you enter the dingiest nightclub ever, see the gun getting loaded with a certain number of rounds in an unknown order, and hope for the best as you face off against the dealer. It’s not as simple as just a game of randomly taking turns, but, as with all things horror, it’s all best left unspoiled. Buckshot Roulette is rather original — as a video game, at least — but, if I’m to compare it to anything else out there, I’d go with saying it’s sure to please fans of Inscryption.
-    
-    A full playthrough will likely not take you more than 20 minutes — yes, even if you don’t blow yourself up.
-    
-    It plays just like a real tabletop game would, down to it featuring pretty much no interface clutter. All the information that you get, you get from the game.
-    
-    I assure you that even though the results of the game are unpredictable due to the random factor involved, the AI doesn’t know more than it should. The dealer is a very unsettling creature, but it plays fair.
-    
-    Even though this is an indie game through and through, developer Mark Klubnika warns that you must own what they call a “relatively modern” dedicated graphics card that features Vulkan support.
-    What are the items in Buckshot Roulette?
-    
-    Here are all of the items in Buckshot Roulette:
-    Handcuffs	Causes the dealer to skip his next turn
-    Hand Saw	Doubles the damage of your shotgun. Great combo with the Magnifying glass
+    Buckshot roulette is a complex twist on the simple ‘game’ of Russian Roulette. In it, you’re pitted against a cold being— the dealer. A shotgun is placed in front of you; loaded with some lives, some blanks. It’s up to you to kill the dealer. 
+You go first. You have the option to A. Shoot the dealer or B. Shoot yourself. If you hit yourself with a blank, you get another turn. Simple. 
+To help you out, you get some items. The dealer gets them, too.
+
+    Handcuffs	Causes the dealer to skip their next turn
+    Hand Saw	Doubles the damage of your shotgun
     Beer	Ejects the shell that’s in the chamber
     Pills	Begins a subgame of “double or nothing”*
     Cigarettes	heals one life point
     Magnifying Glass	Allows you to examine the shell currently in the chamber
     
-    If you take the pills, you’ll begin a game of double or nothing, which will introduce a new set of items. Let’s look into those:
-    Double Or Nothing items
+    If you take the pills, you’ll begin a game of double or nothing, which will introduce a new set of items.
+    Double Or Nothing items:
     Inverter	Reverses the effect of the shell currently in the chamber. A blank will turn into a live round and a live round turns into a blank.
     Adrenaline	The player will steal an item from the dealer’s board and use it immediately
     Burner phone	Will inform you about a random round in your stack
     Expired medicine	40% chance of regaining two lives, 60% chance of losing one life
     
-    You can get Buckshot Roulette for $2.99 on Steam, or you can get it from itch.io for $1.20 right here.");
-    */
-    thread::sleep(Duration::from_secs(5));
+Your shaky hands are in control of the gun. Will you make it out alive? 
+   ");
+    println!("Press enter to continue...");
+    io::stdout().flush().unwrap();
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).unwrap();
+    println!("Continuing...");
     play_screen();
 
 }
-
 
 fn play_screen() -> Selection {
     clearscreen::clear().expect("Failed to clear screen");
