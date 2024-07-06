@@ -28,6 +28,10 @@ enum ItemEnum {
     MagGlass,
     Beers,
     Handcuffs,
+    Adren,
+    BurnPho,
+    Invert,
+    ExpMed,
     Nothing,
 }
 impl fmt::Display for ItemEnum {
@@ -38,6 +42,10 @@ impl fmt::Display for ItemEnum {
             ItemEnum::MagGlass => "Magnifying Glass",
             ItemEnum::Beers => "Beer",
             ItemEnum::Handcuffs => "Handcuffs",
+            ItemEnum::Adren => "Adrenaline",
+            ItemEnum::BurnPho => "Burner Phone",
+            ItemEnum::Invert => "Inverter",
+            ItemEnum::ExpMed => "Expired Medicine",
             ItemEnum::Nothing => "No item",
         };
         write!(f, "{printable}")
@@ -45,6 +53,7 @@ impl fmt::Display for ItemEnum {
 }
 
 struct GameInfo {
+
     shell: bool,
     dealer_health: i8,
     player_health: i8,
@@ -52,6 +61,7 @@ struct GameInfo {
     player_stored_items: [ItemEnum; 8],
     dealer_stored_items: [ItemEnum; 8],
     perfect: bool,
+    shells_vector: Vec<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -170,13 +180,34 @@ fn main() {
     }
 }
 
-fn generate_items(len: usize) -> Vec<ItemEnum> {
+fn generate_items(len: usize, doub_or_no: bool) -> Vec<ItemEnum> {
+    let mut items_vec: Vec<ItemEnum> = Vec::new();
     let saws: u8 = rand::thread_rng().gen_range(2..=6);
     let beers: u8 = rand::thread_rng().gen_range(2..7);
     let cigs: u8 = rand::thread_rng().gen_range(2..8);
     let mag_glass: u8 = rand::thread_rng().gen_range(2..7);
     let handcuffs: u8 = rand::thread_rng().gen_range(2..5);
-    let mut items_vec: Vec<ItemEnum> = Vec::new();
+    if doub_or_no {
+        let adren: u8 = rand::thread_rng().gen_range(2..6);
+        let burn_pho: u8 = rand::thread_rng().gen_range(2..7);
+        let invert: u8 = rand::thread_rng().gen_range(2..8);
+        let exp_med: u8 = rand::thread_rng().gen_range(2..8);
+        if doub_or_no {
+        for _ in 0..adren {
+        items_vec.push(ItemEnum::Adren);
+    }
+    for _ in 0..burn_pho {
+        items_vec.push(ItemEnum::BurnPho);
+    }
+    for _ in 0..invert {
+        items_vec.push(ItemEnum::Invert);
+    }
+    for _ in 0..exp_med {
+        items_vec.push(ItemEnum::ExpMed);
+    }
+    }
+    }
+    
     for _ in 0..saws {
         items_vec.push(ItemEnum::Saws);
     }
@@ -192,8 +223,8 @@ fn generate_items(len: usize) -> Vec<ItemEnum> {
     for _ in 0..handcuffs {
         items_vec.push(ItemEnum::Handcuffs);
     }
-    let mut rng = rand::thread_rng();
     for _ in 0..10 {
+        let mut rng = rand::thread_rng();
         items_vec.as_mut_slice().shuffle(&mut rng);
     }
 
@@ -203,14 +234,8 @@ fn generate_items(len: usize) -> Vec<ItemEnum> {
     trimmed_vec
 }
 
-fn handle_items(item_enum_type: ItemEnum, items_vec: &mut Vec<ItemEnum>) {
-    let index = items_vec.iter().position(|&x| x == item_enum_type).unwrap();
-    items_vec.remove(index);
-}
-
 fn pick_items(player_stored_items: &mut [ItemEnum; 8]) {
     let mut items_vec = generate_items(8);
-
     for _ in 0..4 {
         println!("You got {}, where are you going to place it?", items_vec[i]);
         let selection = FuzzySelect::new()
@@ -221,26 +246,8 @@ fn pick_items(player_stored_items: &mut [ItemEnum; 8]) {
             .unwrap();
 
         player_stored_items[selection] = items_vec[i]; // replace item in player_stored_items with items_vec[i]
-
-        match items_vec[i] {
-            ItemEnum::Cigs => {
-                handle_items(ItemEnum::Cigs, &mut items_vec);
-            }
-            ItemEnum::Saws => {
-                handle_items(ItemEnum::Saws, &mut items_vec);
-            }
-            ItemEnum::MagGlass => {
-                handle_items(ItemEnum::MagGlass, &mut items_vec);
-            }
-            ItemEnum::Handcuffs => {
-                handle_items(ItemEnum::Handcuffs, &mut items_vec);
-            }
-            ItemEnum::Beers => {
-                handle_items(ItemEnum::Beers, &mut items_vec);
-            }
-
-            ItemEnum::Nothing => todo!(),
-        }
+        let index = items_vec.iter().position(|&x| x == items_vec[i]).unwrap();
+        items_vec.remove(index);
     }
 }
 
@@ -294,7 +301,6 @@ fn dealer_item_use(
             }
             remove_no_item(dealer_stored_items, ItemEnum::Handcuffs);
         }
-
         ItemEnum::Nothing => {
             println!("ERROR: THIS CODE SHOULD NOT BE REACHABLE! PLEASE REPORT THIS BUG.")
         }
@@ -486,6 +492,31 @@ fn your_turn(game_info: &mut GameInfo) {
                 remove_no_item(&mut game_info.player_stored_items, ItemEnum::Beers);
                 remove_no_item(&mut game_info.player_stored_items, ItemEnum::Nothing);
             }
+            ItemEnum::Adren => {
+                println!("You jam the rusty needle into your thigh. Steal one of the dealer's items.");
+                let stolen_item = FuzzySelect::new().with_prompt("Pick an Item").items(&mut game_info.dealer_stored_items).interact().unwrap();
+                remove_no_item(&mut game_info.dealer_stored_items, stolen_item);
+                remove_no_item(&mut game_info.player_stored_items, ItemEnum::Adren);
+                remove_no_item(&mut game_info.player_stored_items, ItemEnum::Nothing);
+                todo!("give the player the item")
+                }
+            ItemEnum::BurnPho => {
+                let shell_number: u8 = rand::thread_rng().gen_range(0..{shells_vector.len()});
+                let shell_reveal = if shells_vector[shell_number] {"live"} else {blank};
+                let place = match shell_number {
+                    1 => "first",
+                    2 => "second",
+                    3 => "third",
+                    4 => "fourth",
+                    5 => "fifth",
+                    6 => "sixth",
+                    7 => "seventh",
+                    8 => "eigth",
+                };
+                println!("You flip open the phone. The {place} shell is {shell_reveal}");
+            }
+            ItemEnum::Invert => {}
+            ItemEnum::ExpMed => {}
             ItemEnum::Nothing => {
                 remove_no_item(&mut game_info.player_stored_items, ItemEnum::Nothing)
             }
