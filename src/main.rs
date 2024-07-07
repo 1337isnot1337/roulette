@@ -8,8 +8,8 @@ use crossterm::{
 use dialoguer::FuzzySelect;
 use rand::seq::SliceRandom;
 use rand::Rng;
-use std::process;
-use std::sync::atomic::{AtomicBool, Ordering};
+use rodio::{Decoder, OutputStream, Source};
+use std::{fs, path::Path, sync::atomic::{AtomicBool, Ordering}};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -17,11 +17,20 @@ use std::{
     env,
     io::{self, Write},
 };
+use std::{
+    fs::File,
+    io::BufReader,
+    process,
+};
+use kira::manager::{AudioManager, AudioManagerSettings};
+use kira::sound::{Sound};
+
 
 // Example cleanup function
 fn cleanup() {
     print!("\x1B[?25h");
     io::stdout().flush().unwrap();
+    process::exit(0);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -102,6 +111,7 @@ fn picked_to_stored_dealer(
     *dealer_stored_items
 }
 fn main() {
+    play_audio("double_or_nothing_bootup.ogg");
     let mut perfect = false;
     let mut doub_or_noth = false;
     let args: Vec<String> = env::args().collect();
@@ -176,11 +186,15 @@ fn main() {
                     match turn_owner {
                         TargetEnum::Player => {
                             player_extraturn = your_turn(&mut game_info);
-                            if !player_extraturn {turn_owner = TargetEnum::Dealer};
+                            if !player_extraturn {
+                                turn_owner = TargetEnum::Dealer;
+                            };
                         }
                         TargetEnum::Dealer => {
                             dealer_extraturn = dealer_turn(current_bullets_vec, &mut game_info);
-                            if !dealer_extraturn {turn_owner = TargetEnum::Player};
+                            if !dealer_extraturn {
+                                turn_owner = TargetEnum::Player;
+                            };
                         }
                     }
                     turn += 1;
@@ -311,7 +325,7 @@ fn dealer_item_use(item_type: ItemEnum, game_info: &mut GameInfo, damage: &mut u
         ItemEnum::Handcuffs => {
             println!("The dealer grabs onto your hand. When he lets go, your hands are cuffed.");
             if game_info.turn_owner == TargetEnum::Dealer {
-                game_info.turn_owner == TargetEnum::Player;
+                game_info.turn_owner = TargetEnum::Player;
             }
             remove_no_item(&mut game_info.dealer_stored_items, ItemEnum::Handcuffs);
         }
@@ -379,7 +393,7 @@ fn dealer_turn(current_bullets_vec: Vec<bool>, game_info: &mut GameInfo) -> bool
         lives >= blanks
     };
     //true means dealer shoots you, false means dealer shoots itself
-    let mut extraturn = false; 
+    let mut extraturn = false;
     if choice {
         println!("The dealer points the gun at your face.");
         thread::sleep(Duration::from_secs(1));
@@ -388,7 +402,7 @@ fn dealer_turn(current_bullets_vec: Vec<bool>, game_info: &mut GameInfo) -> bool
             println!("Dealer shot you.");
             game_info.player_health -= 1;
         } else {
-            //play_audio("audio/blank.mp3");
+            play_audio("temp_gunshot_blank.wav");
             italics!("click");
         }
     } else {
@@ -399,7 +413,7 @@ fn dealer_turn(current_bullets_vec: Vec<bool>, game_info: &mut GameInfo) -> bool
             println!("Dealer shot themselves.");
             game_info.dealer_health -= 1;
         } else {
-            //play_audio("audio/blank.mp3");
+            play_audio("temp_gunshot_blank.wav");
             italics!("click");
             println!("Extra turn for dealer.");
             extraturn = true;
@@ -546,7 +560,6 @@ fn your_turn(game_info: &mut GameInfo) -> bool {
         game_info.shell,
         &mut game_info.player_health,
         &mut game_info.dealer_health,
-        game_info.turn_owner,
         damage,
     );
     thread::sleep(Duration::from_secs(1));
@@ -559,10 +572,9 @@ fn resolve_user_choice(
     shell: bool,
     player_health: &mut i8,
     dealer_health: &mut i8,
-    mut turn_owner: TargetEnum,
     damage: i8,
 ) -> bool {
-    let extraturn = false;
+    let mut extraturn = false;
     match choice {
         TargetEnum::Player => {
             println!("You point the gun at your face.");
@@ -573,7 +585,7 @@ fn resolve_user_choice(
                 println!("You shot yourself.");
                 *player_health -= 1;
             } else {
-                play_audio("blank.mp3");
+                play_audio("temp_gunshot_blank.wav");
                 italics!("click");
                 thread::sleep(Duration::from_secs(1));
                 println!("Extra turn for you.");
@@ -590,7 +602,7 @@ fn resolve_user_choice(
 
                 *dealer_health -= damage;
             } else {
-                //play_audio("audio/blank.mp3");
+                play_audio("temp_gunshot_blank.wav");
                 italics!("click");
             }
         }
@@ -611,11 +623,11 @@ fn load_shells(live: u8, blanks: u8) -> Vec<bool> {
     let mut shells: Vec<bool> = Vec::new();
     for _i in 0..blanks {
         shells.push(false);
-        play_audio("shell_push_sound");
+        play_audio("load_single_shell.ogg");
     }
     for _i in 0..live {
         shells.push(true);
-        play_audio("shell_push_sound");
+        play_audio("load_single_shell.ogg");
     }
     let mut rng = rand::thread_rng();
     shells.as_mut_slice().shuffle(&mut rng);
@@ -626,49 +638,60 @@ fn load_shells(live: u8, blanks: u8) -> Vec<bool> {
 fn check_life(player_health: i8, dealer_health: i8) {
     if player_health < 1 {
         println!("You have no lives left. Game over.");
-        print!("\x1B[?25h");
-        io::stdout().flush().unwrap();
-        process::exit(0);
+        cleanup();
     }
     if dealer_health < 1 {
         println!("Dealer has no lives left. You win!");
-        print!("\x1B[?25h");
-        io::stdout().flush().unwrap();
-        process::exit(0);
+        cleanup();
     }
 }
 
 fn play_audio(path: &str) {
     // Clone path for use in the thread
+    let path_updated = format!("audio/{}", path);
+    if let Err(err) = fs::metadata(&path_updated) {
+        panic!(
+            "Audio file at path {} caused an error. Here is the error: {}",
+            path_updated, err
+        );
+    }
 
-    path = match fs::metadata("audio/{path}") {
-        Ok(_) => format!("audio/{path}"),
-        Err(_) => panic!("Audio file at path audio/{path} does not exist!"),
-    };
+    // Initialize the Kira audio manager with default settings
+    let settings = AudioManagerSettings::default(); // or customize settings if needed
+    let audio_manager = AudioManager::new(settings).unwrap();
+    let audio_manager_ref = Arc::new(audio_manager);
 
     // Spawn a new thread to play audio asynchronously
-    thread::spawn(move || {
-        let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-        let file = BufReader::new(File::open(&path).unwrap());
-        let source = Decoder::new(file).unwrap().convert_samples();
+    thread::spawn({
+        let path_updated = path_updated.clone();
+        let audio_manager_ref = Arc::clone(&audio_manager_ref);
+        move || {
+            // Load the audio file
+            let sound_id = audio_manager_ref.load_sound(Path::new(&path_updated), SoundSettings::default()).unwrap();
 
-        stream_handle.play_raw(source).unwrap();
+            // Play the sound
+            let handle = audio_manager_ref.play_sound(sound_id.clone()).unwrap();
 
-        // Calculate duration of the audio file
-        let duration = mp3_duration::from_path(Path::new(&path)).unwrap();
-        let duration_secs = duration.as_secs() + if duration.subsec_millis() > 0 { 1 } else { 0 };
+            // Calculate duration of the audio file
+            let duration_secs = audio_manager_ref.sound_duration(sound_id).as_secs();
 
-        // Sleep for the duration of the audio
-        thread::sleep(Duration::from_secs(duration_secs));
+            // Sleep for the duration of the audio
+            thread::sleep(Duration::from_secs(duration_secs));
+
+            // Explicitly stop the sound after the duration (optional)
+            handle.stop().unwrap();
+        }
     });
 }
+
+
 
 
 fn turn_screen_red() {
     // Execute crossterm commands to clear screen and set red background
     let mut chunk = String::new();
     let mut space = 9000;
-    play_audio("live.mp3");
+    play_audio("temp_gunshot_live.wav");
     while space > 0 {
         chunk.push(' ');
 
@@ -698,7 +721,6 @@ fn credits() {
     let mut input = String::new();
     io::stdin().read_line(&mut input).unwrap();
     println!("Continuing...");
-    play_screen();
 }
 fn help() {
     clearscreen::clear().expect("Failed to clear screen");
@@ -708,19 +730,18 @@ fn help() {
 You go first. You have the option to A. Shoot the dealer or B. Shoot yourself. If you hit yourself with a blank, you get another turn. Simple. 
 To help you out, you get some items. The dealer gets them, too.
 
-    Handcuffs	Causes the dealer to skip their next turn
-    Hand Saw	Doubles the damage of your shotgun
-    Beer	Ejects the shell that's in the chamber
-    Pills	Begins a subgame of âdouble or nothingâ*
-    Cigarettes	heals one life point
-    Magnifying Glass	Allows you to examine the shell currently in the chamber
+    Handcuffs:	Causes the dealer to skip their next turn
+    Hand Saw:	Doubles the damage of your shotgun
+    Beer:	Ejects the shell that's in the chamber
+    Cigarettes:	heals one life point
+    Magnifying Glass:	Allows you to examine the shell currently in the chamber
     
     If you take the pills, you'll begin a game of double or nothing, which will introduce a new set of items.
     Double Or Nothing items:
-    Inverter	Reverses the effect of the shell currently in the chamber. A blank will turn into a live round and a live round turns into a blank.
-    Adrenaline	The player will steal an item from the dealer's board and use it immediately
-    Burner phone	Will inform you about a random round in your stack
-    Expired medicine	40% chance of regaining two lives, 60% chance of losing one life
+    Inverter:	Reverses the effect of the shell currently in the chamber. A blank will turn into a live round and a live round turns into a blank.
+    Adrenaline:	The player will steal an item from the dealer's board and use it immediately
+    Burner phone:	Will inform you about a random round in your stack
+    Expired medicine:	50% chance of regaining two lives, 50% chance of losing one life
     
 Your shaky hands are in control of the gun. Will you make it out alive? 
    ");
@@ -729,7 +750,6 @@ Your shaky hands are in control of the gun. Will you make it out alive?
     let mut input = String::new();
     io::stdin().read_line(&mut input).unwrap();
     println!("Continuing...");
-    play_screen();
 }
 
 fn play_screen() -> Selection {
