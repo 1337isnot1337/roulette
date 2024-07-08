@@ -1,10 +1,10 @@
+use crate::{
+    check_life, generate_items, italics, play_audio, remove_no_item, turn_screen_red, GameInfo,
+    ItemEnum, TargetEnum,
+};
 use dialoguer::FuzzySelect;
 use rand::Rng;
-use std::{
-    thread,
-    time::Duration,
-};
-use crate::{check_life, generate_items, italics, play_audio, remove_no_item, turn_screen_red, GameInfo, ItemEnum, TargetEnum};
+use std::{thread, time::Duration};
 
 #[allow(clippy::too_many_lines)]
 pub fn turn(game_info: &mut GameInfo) -> bool {
@@ -15,10 +15,12 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
             .items(&game_info.player_stored_items)
             .interact()
             .unwrap();
+        dbg!(game_info.player_stored_items);
 
         let item_use = &mut game_info.player_stored_items[selection];
         match item_use {
             ItemEnum::Cigs => {
+                play_audio("player_use_cigarettes.ogg");
                 if game_info.player_health == 3 {
                     println!(
                     "You light one of the cigs. Your head feels hazy. It doesn't seem to do much."
@@ -32,6 +34,7 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
                 continue 'item_selection_loop;
             }
             ItemEnum::Saws => {
+                play_audio("player_use_handsaw.ogg");
                 println!("Shhk. You slice off the tip of the gun. It'll do 2 damage now.");
                 damage = 2;
                 remove_no_item(&mut game_info.player_stored_items, ItemEnum::Saws);
@@ -39,6 +42,7 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
                 continue 'item_selection_loop;
             }
             ItemEnum::MagGlass => {
+                play_audio("player_use_magnifier.ogg");
                 if game_info.shell {
                     println!(
                         "Upon closer inspection, you realize that there's a live round loaded."
@@ -53,6 +57,7 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
                 continue 'item_selection_loop;
             }
             ItemEnum::Handcuffs => {
+                play_audio("player_use_handcuffs.ogg");
                 println!(
                     "The dealer grabs the handcuffs from your outstretched hand, putting them on."
                 );
@@ -65,25 +70,22 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
                     }
                 }
                 remove_no_item(&mut game_info.player_stored_items, ItemEnum::Handcuffs);
+                remove_no_item(&mut game_info.player_stored_items, ItemEnum::Nothing);
             }
             ItemEnum::Beers => {
+                play_audio("player_use_beer.ogg");
                 if game_info.shell {
                     println!("You give the shotgun a pump. A live round drops out.");
                 } else {
                     println!("You give the shotgun a pump. A blank round drops out.");
                 };
-                match game_info.turn_owner {
-                    TargetEnum::Player => {
-                        game_info.turn_owner = TargetEnum::Dealer;
-                    }
-                    TargetEnum::Dealer => {
-                        game_info.turn_owner = TargetEnum::Player;
-                    }
-                }
+                game_info.shells_vector.remove(0);
                 remove_no_item(&mut game_info.player_stored_items, ItemEnum::Beers);
                 remove_no_item(&mut game_info.player_stored_items, ItemEnum::Nothing);
             }
+
             ItemEnum::Adren => {
+                play_audio("player_use_adrenaline.ogg");
                 println!("You jam the rusty needle into your thigh.");
                 let stolen_item = game_info.dealer_stored_items[FuzzySelect::new()
                     .with_prompt("Pick an item to steal from the dealer")
@@ -97,6 +99,7 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
                 todo!("give the player the item")
             }
             ItemEnum::BurnPho => {
+                play_audio("player_use_burner_phone.ogg");
                 let shell_number: usize =
                     rand::thread_rng().gen_range(0..{ game_info.shells_vector.len() });
                 let shell_reveal = if game_info.shells_vector[shell_number] {
@@ -118,13 +121,27 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
                 println!("You flip open the phone. The {place} shell is {shell_reveal}");
             }
             ItemEnum::Invert => {
+                play_audio("player_use_inverter.ogg");
                 todo!()
             }
-            ItemEnum::ExpMed => {}
+            ItemEnum::ExpMed => {
+                play_audio("player_use_medicine.ogg");
+                println!("You takes the expired medicine.");
+                let coinflip: bool = rand::thread_rng().gen();
+                if coinflip {
+                    game_info.player_health += 1;
+                    println!("You feel energy coursing through you.");
+                } else {
+                    game_info.player_health -= 2;
+                    println!("You choke and fall over.");
+                }
+                remove_no_item(&mut game_info.dealer_stored_items, ItemEnum::ExpMed);
+            }
             ItemEnum::Nothing => {
                 remove_no_item(&mut game_info.player_stored_items, ItemEnum::Nothing);
             }
         }
+        dbg!(game_info.player_stored_items);
         break;
     }
 
@@ -193,18 +210,18 @@ fn resolve_player_choice(
 }
 
 pub fn pick_items(player_stored_items: &mut [ItemEnum; 8], doub_or_noth: bool) {
-    let mut items_vec = generate_items(8, doub_or_noth);
-    for i in 0..4 {
-        println!("You got {}, where are you going to place it?", items_vec[i]);
+    let items_vec = &mut generate_items(8, doub_or_noth);
+    for _ in 0..4 {
+        println!("dbg");
+        dbg!(&items_vec);
+        println!("You got {}, where are you going to place it?", items_vec[0]);
         let selection = FuzzySelect::new()
             .with_prompt("Store the item")
             .report(false)
             .items(player_stored_items)
             .interact()
             .unwrap();
-
-        player_stored_items[selection] = items_vec[i]; // replace item in player_stored_items with items_vec[i]
-        let index = items_vec.iter().position(|&x| x == items_vec[i]).unwrap();
-        items_vec.remove(index);
+        player_stored_items[selection] = items_vec[selection]; // replace item in player_stored_items with items_vec[i]
+        items_vec.remove(0);
     }
 }

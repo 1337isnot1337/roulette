@@ -6,20 +6,33 @@ use crate::{
     TargetEnum,
 };
 
-pub fn turn(current_bullets_vec: Vec<bool>, game_info: &mut GameInfo) -> bool {
-    let mut damage = 1;
-    // future goal: add logic for having dealer pick certain items
-    let mut shell_knowledge = false;
-    let mut handcuff_player: bool = false;
+
+
+fn dealer_use_items(current_bullets_vec: &Vec<bool>, game_info: &mut GameInfo, mut damage: u8, mut shell_knowledge: bool, mut handcuff_player: bool) {
     let coinflip: bool = rand::thread_rng().gen();
+    let mut lives = 0;
+    let mut blanks = 0;
+
+    for item in current_bullets_vec {
+        if *item {
+            lives += 1;
+        } else {
+            blanks += 1;
+        }
+    }
     'dealer_use_items: loop {
         if game_info.dealer_stored_items.contains(&ItemEnum::Cigs) & { game_info.dealer_health < 3 }
         {
             item_use(ItemEnum::Cigs, game_info, &mut damage);
+            play_audio("dealer_use_cigarettes.ogg");
+            thread::sleep(Duration::from_millis(500));
+
             continue 'dealer_use_items;
         }
         if game_info.dealer_stored_items.contains(&ItemEnum::MagGlass) && !shell_knowledge {
             shell_knowledge = item_use(ItemEnum::MagGlass, game_info, &mut damage);
+            play_audio("dealer_use_magnifier.ogg");
+            thread::sleep(Duration::from_millis(500));
             continue 'dealer_use_items;
         }
         if game_info.dealer_stored_items.contains(&ItemEnum::Saws)
@@ -27,19 +40,66 @@ pub fn turn(current_bullets_vec: Vec<bool>, game_info: &mut GameInfo) -> bool {
             & game_info.shell
         {
             item_use(ItemEnum::Saws, game_info, &mut damage);
+            play_audio("dealer_use_handsaw.ogg");
+            thread::sleep(Duration::from_millis(500));
             continue 'dealer_use_items;
         }
         if game_info.dealer_stored_items.contains(&ItemEnum::Handcuffs) && !handcuff_player {
             item_use(ItemEnum::Handcuffs, game_info, &mut damage);
+            play_audio("dealer_use_cigarettes.ogg");
+            thread::sleep(Duration::from_millis(500));
             handcuff_player = !handcuff_player;
             continue 'dealer_use_items;
         }
         if game_info.dealer_stored_items.contains(&ItemEnum::Beers) && !shell_knowledge & coinflip {
             item_use(ItemEnum::Beers, game_info, &mut damage);
+            play_audio("dealer_use_beer.ogg");
+            thread::sleep(Duration::from_millis(500));
             break 'dealer_use_items;
+        }
+        if game_info.double_or_nothing {
+            if game_info.dealer_stored_items.contains(&ItemEnum::Adren) && {
+                !game_info.player_stored_items.is_empty()
+            } {
+                item_use(ItemEnum::Beers, game_info, &mut damage);
+                play_audio("dealer_use_adrenaline.ogg");
+                thread::sleep(Duration::from_millis(500));
+                break 'dealer_use_items;
+            }
+            if game_info.dealer_stored_items.contains(&ItemEnum::BurnPho)
+                && lives != 0
+                && game_info.shells_vector.len() > 1
+            {
+                item_use(ItemEnum::Beers, game_info, &mut damage);
+                play_audio("dealer_use_burner_phone.ogg");
+                thread::sleep(Duration::from_millis(500));
+                break 'dealer_use_items;
+            }
+            if game_info.dealer_stored_items.contains(&ItemEnum::Invert) && {
+                (shell_knowledge && !game_info.shell) || (lives > blanks)
+            } {
+                item_use(ItemEnum::Beers, game_info, &mut damage);
+                play_audio("dealer_use_inverter.ogg");
+                thread::sleep(Duration::from_millis(500));
+                break 'dealer_use_items;
+            }
+            if game_info.dealer_stored_items.contains(&ItemEnum::ExpMed) && game_info.dealer_health == 2 {
+                item_use(ItemEnum::Beers, game_info, &mut damage);
+                play_audio("dealer_use_medicine.ogg");
+                thread::sleep(Duration::from_millis(500));
+                break 'dealer_use_items;
+            }
         }
         break;
     }
+}
+
+pub fn turn(current_bullets_vec: Vec<bool>, game_info: &mut GameInfo) -> bool {
+    let damage: u8 = 1;
+    // future goal: add logic for having dealer pick certain items
+    let shell_knowledge = false;
+    let handcuff_player: bool = false;
+    dealer_use_items(&current_bullets_vec, game_info, damage, shell_knowledge, handcuff_player);
 
     let choice: bool = if game_info.perfect | shell_knowledge {
         game_info.shell
@@ -48,8 +108,8 @@ pub fn turn(current_bullets_vec: Vec<bool>, game_info: &mut GameInfo) -> bool {
         let mut lives = 0;
         let mut blanks = 0;
 
-        for item in current_bullets_vec {
-            if item {
+        for item in &current_bullets_vec {
+            if *item {
                 lives += 1;
             } else {
                 blanks += 1;
@@ -144,10 +204,35 @@ pub fn item_use(item_type: ItemEnum, game_info: &mut GameInfo, damage: &mut u8) 
         ItemEnum::Nothing => {
             println!("ERROR: THIS CODE SHOULD NOT BE REACHABLE! PLEASE REPORT THIS BUG.");
         }
-        ItemEnum::Adren => todo!(),
-        ItemEnum::BurnPho => todo!(),
-        ItemEnum::Invert => todo!(),
-        ItemEnum::ExpMed => todo!(),
+
+        ItemEnum::Adren => {
+            println!("The dealer takes a hit of the adrenaline.");
+            remove_no_item(&mut game_info.dealer_stored_items, ItemEnum::Adren);
+        
+        },
+        ItemEnum::BurnPho => {
+            println!("The dealer uses the burner phone.");
+            remove_no_item(&mut game_info.dealer_stored_items, ItemEnum::BurnPho);
+        
+        },
+        ItemEnum::Invert => {
+            println!("The dealer uses the inverter.");
+            remove_no_item(&mut game_info.dealer_stored_items, ItemEnum::Invert);
+        
+        },
+        ItemEnum::ExpMed => {
+            println!("The dealer takes the expired medicine.");
+            let coinflip: bool = rand::thread_rng().gen();
+            if coinflip {
+                game_info.dealer_health += 1;
+                println!("The dealer smiles.");
+            } else {
+                game_info.dealer_health -= 2;
+                println!("The dealer chokes and falls over.");
+            }
+            remove_no_item(&mut game_info.dealer_stored_items, ItemEnum::ExpMed);
+        
+        },
     }
     knowledge_of_shell
 }

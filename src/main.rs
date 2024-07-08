@@ -1,14 +1,14 @@
 use ansi_term::Style;
-use dealer::picked_to_stored;
-use player::pick_items;
 use core::fmt;
 use crossterm::{
     execute,
     style::{Color, Print, ResetColor, SetBackgroundColor},
     terminal::{Clear, ClearType},
 };
+use dealer::picked_to_stored;
 use dialoguer::FuzzySelect;
 use once_cell::sync::Lazy;
+use player::pick_items;
 use rand::{seq::SliceRandom, Rng};
 use rodio::{Decoder, OutputStream, OutputStreamHandle, Source};
 use std::{
@@ -89,6 +89,7 @@ struct GameInfo {
     player_stored_items: [ItemEnum; 8],
     dealer_stored_items: [ItemEnum; 8],
     perfect: bool,
+    double_or_nothing: bool,
     shells_vector: Vec<bool>,
 }
 
@@ -124,80 +125,85 @@ fn main() {
     while running.load(Ordering::SeqCst) {
         play_audio("music/music_main_techno_techno.ogg");
         let mut perfect = false;
-        let mut doub_or_noth = false;
+        let mut double_or_nothing = false;
         let args: Vec<String> = env::args().collect();
         if args.contains(&"--perfect".to_string()) {
             perfect = true;
         }
         if args.contains(&"--double".to_string()) {
-            doub_or_noth = true;
+            double_or_nothing = true;
         }
 
         clearscreen::clear().expect("Failed to clear screen");
         match play_screen() {
             Selection::Play => {
-                let (player_health, dealer_health) = (3i8, 3i8);
-                let (mut dealer_stored_items, mut player_stored_items) =
-                    ([ItemEnum::Nothing; 8], [ItemEnum::Nothing; 8]);
+                
+                    let (player_health, dealer_health) = (3i8, 3i8);
+                    loop {
+                    let (mut dealer_stored_items, mut player_stored_items) =
+                        ([ItemEnum::Nothing; 8], [ItemEnum::Nothing; 8]);
 
-                // add code for new items
-                pick_items(&mut player_stored_items, doub_or_noth);
+                    // add code for new items
+                    pick_items(&mut player_stored_items, double_or_nothing);
 
-                dealer_stored_items = picked_to_stored(
-                    generate_items(4, doub_or_noth),
-                    &mut dealer_stored_items,
-                );
-                let mut live: u8;
-                let mut blanks: u8;
-                loop {
-                    live = rand::thread_rng().gen_range(1..=4);
-                    blanks = rand::thread_rng().gen_range(1..=4);
-                    if (live + blanks) > 2 {
-                        break;
-                    }
-                }
-                println!("----------------\nThere are {live} lives and {blanks} blanks.\n----------------\n");
-                let shell_vec: Vec<bool> = load_shells(live, blanks);
-                //turn owner is used to switch between turns for player/dealer.
-                //true means it is the players turn, false the dealer's turn.
-                let mut turn_owner: TargetEnum = TargetEnum::Player;
-                let mut turn: usize = 1;
-                let mut player_extraturn: bool;
-                let mut dealer_extraturn:bool;
-
-                for shell in &shell_vec {
-                    let mut game_info: GameInfo = GameInfo {
-                        shell: *shell,
-                        dealer_health,
-                        player_health,
-                        turn_owner,
-                        player_stored_items,
-                        dealer_stored_items,
-                        perfect,
-                        shells_vector: (*shell_vec).to_vec(),
-                    };
-                    //current bullets vec holds the bullets currently loaded
-                    let current_bullets_vec: Vec<bool> = shell_vec[turn - 1..].to_vec();
-                    println!("{}", Style::new().bold().paint(format!("Turn {turn}\n")));
-                    println!("You have {player_health} lives remaining. The dealer has {dealer_health} lives remaining.");
-                    check_life(player_health, dealer_health);
-                    match turn_owner {
-                        TargetEnum::Player => {
-                            player_extraturn = player::turn(&mut game_info);
-                            if !player_extraturn {
-                                turn_owner = TargetEnum::Dealer;
-                            };
-                        }
-                        TargetEnum::Dealer => {
-                            dealer_extraturn = dealer::turn(current_bullets_vec, &mut game_info);
-                            if !dealer_extraturn {
-                                turn_owner = TargetEnum::Player;
-                            };
+                    dealer_stored_items = picked_to_stored(
+                        generate_items(4, double_or_nothing),
+                        &mut dealer_stored_items,
+                    );
+                    let mut live: u8;
+                    let mut blanks: u8;
+                    loop {
+                        live = rand::thread_rng().gen_range(1..=4);
+                        blanks = rand::thread_rng().gen_range(1..=4);
+                        if (live + blanks) > 2 {
+                            break;
                         }
                     }
-                    turn += 1;
+                    println!("----------------\nThere are {live} lives and {blanks} blanks.\n----------------\n");
+                    let shell_vec: Vec<bool> = load_shells(live, blanks);
+                    //turn owner is used to switch between turns for player/dealer.
+                    //true means it is the players turn, false the dealer's turn.
+                    let mut turn_owner: TargetEnum = TargetEnum::Player;
+                    let mut turn: usize = 1;
+                    let mut player_extraturn: bool;
+                    let mut dealer_extraturn: bool;
 
-                    thread::sleep(Duration::from_secs(1));
+                    for shell in &shell_vec {
+                        let mut game_info: GameInfo = GameInfo {
+                            shell: *shell,
+                            dealer_health,
+                            player_health,
+                            turn_owner,
+                            player_stored_items,
+                            dealer_stored_items,
+                            perfect,
+                            double_or_nothing,
+                            shells_vector: (*shell_vec).to_vec(),
+                        };
+                        //current bullets vec holds the bullets currently loaded
+                        let current_bullets_vec: Vec<bool> = shell_vec[turn - 1..].to_vec();
+                        println!("{}", Style::new().bold().paint(format!("Turn {turn}\n")));
+                        println!("You have {player_health} lives remaining. The dealer has {dealer_health} lives remaining.");
+                        check_life(player_health, dealer_health);
+                        match turn_owner {
+                            TargetEnum::Player => {
+                                player_extraturn = player::turn(&mut game_info);
+                                if !player_extraturn {
+                                    turn_owner = TargetEnum::Dealer;
+                                };
+                            }
+                            TargetEnum::Dealer => {
+                                dealer_extraturn =
+                                    dealer::turn(current_bullets_vec, &mut game_info);
+                                if !dealer_extraturn {
+                                    turn_owner = TargetEnum::Player;
+                                };
+                            }
+                        }
+                        turn += 1;
+
+                        thread::sleep(Duration::from_secs(1));
+                    }
                 }
             }
             Selection::Credits => credits(),
@@ -206,19 +212,19 @@ fn main() {
     }
 }
 
-fn generate_items(len: usize, doub_or_no: bool) -> Vec<ItemEnum> {
+fn generate_items(len: usize, double_or_nothing: bool) -> Vec<ItemEnum> {
     let mut items_vec: Vec<ItemEnum> = Vec::new();
     let saws: u8 = rand::thread_rng().gen_range(2..=6);
     let beers: u8 = rand::thread_rng().gen_range(2..7);
     let cigs: u8 = rand::thread_rng().gen_range(2..8);
     let mag_glass: u8 = rand::thread_rng().gen_range(2..7);
     let handcuffs: u8 = rand::thread_rng().gen_range(2..5);
-    if doub_or_no {
+    if double_or_nothing {
         let adren: u8 = rand::thread_rng().gen_range(2..6);
         let burn_pho: u8 = rand::thread_rng().gen_range(2..7);
         let invert: u8 = rand::thread_rng().gen_range(2..8);
         let exp_med: u8 = rand::thread_rng().gen_range(2..8);
-        if doub_or_no {
+        if double_or_nothing {
             for _ in 0..adren {
                 items_vec.push(ItemEnum::Adren);
             }
@@ -264,7 +270,7 @@ fn remove_no_item(picked_items_vec: &mut [ItemEnum; 8], item_type: ItemEnum) {
     if let Some(index) = picked_items_vec.iter().position(|&x| x == item_type) {
         picked_items_vec[index] = ItemEnum::Nothing;
     } else {
-        println!("Item {item_type:?} not found in the array");
+        panic!("Item {item_type:?} not found in the array");
     }
 }
 
@@ -274,12 +280,12 @@ fn load_shells(live: u8, blanks: u8) -> Vec<bool> {
     for _i in 0..blanks {
         shells.push(false);
         play_audio("load_single_shell.ogg");
-        thread::sleep(Duration::from_millis(1000));
+        thread::sleep(Duration::from_millis(500));
     }
     for _i in 0..live {
         shells.push(true);
         play_audio("load_single_shell.ogg");
-        thread::sleep(Duration::from_millis(1000));
+        thread::sleep(Duration::from_millis(500));
     }
     let mut rng = rand::thread_rng();
     shells.as_mut_slice().shuffle(&mut rng);
@@ -302,8 +308,11 @@ fn play_audio(path: &'static str) {
     let path: String = format!("audio/{path}");
 
     let _handle: thread::JoinHandle<()> = thread::spawn(move || {
+        let file: BufReader<File> = BufReader::new(match File::open(path) {
+            Ok(t) => t,
+            Err(e) => panic!("{e}"),
+        });
 
-        let file: BufReader<File> = BufReader::new(File::open(path).unwrap());
         let source: Decoder<BufReader<File>> = Decoder::new(file).unwrap();
         AUDIO_HANDLE.play_raw(source.convert_samples()).unwrap();
         std::thread::sleep(std::time::Duration::from_secs(5));
@@ -346,8 +355,8 @@ fn credits() {
 }
 fn help() {
     clearscreen::clear().expect("Failed to clear screen");
-    let contents = fs::read_to_string("help.txt")
-        .expect("The help.txt file is missing or in the wrong area!");
+    let contents =
+        fs::read_to_string("help.txt").expect("The help.txt file is missing or in the wrong area!");
     println!("{contents}");
     println!("Press enter to continue...");
     io::stdout().flush().unwrap();
@@ -373,7 +382,6 @@ fn cleanup() {
     io::stdout().flush().unwrap();
     process::exit(0);
 }
-
 
 fn italics(text: &str) {
     let styled_text = Style::new().italic().paint(text);
