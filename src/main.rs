@@ -1,5 +1,5 @@
 use ansi_term::Style;
-use dealer::{dealer_turn, picked_to_stored_dealer};
+use dealer::{dealer_turn, picked_to_stored};
 use player::{pick_items, player_turn};
 use core::fmt;
 use crossterm::{
@@ -302,7 +302,7 @@ fn play_audio(path: &'static str) {
     let path: String = format!("audio/{path}");
 
     let _handle: thread::JoinHandle<()> = thread::spawn(move || {
-        
+
         let file: BufReader<File> = BufReader::new(File::open(path).unwrap());
         let source: Decoder<BufReader<File>> = Decoder::new(file).unwrap();
         AUDIO_HANDLE.play_raw(source.convert_samples()).unwrap();
