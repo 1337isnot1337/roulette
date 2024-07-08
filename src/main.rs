@@ -143,7 +143,7 @@ fn main() {
                 // add code for new items
                 pick_items(&mut player_stored_items, doub_or_noth);
 
-                dealer_stored_items = picked_to_stored_dealer(
+                dealer_stored_items = picked_to_stored(
                     generate_items(4, doub_or_noth),
                     &mut dealer_stored_items,
                 );
