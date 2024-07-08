@@ -6,25 +6,21 @@ use crossterm::{
     terminal::{Clear, ClearType},
 };
 use dialoguer::FuzzySelect;
-use rand::seq::SliceRandom;
-use rand::Rng;
-use rodio::{Decoder, OutputStream, Source};
-use std::{fs, path::Path, sync::atomic::{AtomicBool, Ordering}};
-use std::sync::Arc;
-use std::thread;
-use std::time::Duration;
+use once_cell::sync::Lazy;
+use rand::{seq::SliceRandom, Rng};
+use rodio::{Decoder, OutputStream, OutputStreamHandle, Source};
 use std::{
     env,
-    io::{self, Write},
+    fs::{self, File},
+    io::{self, BufReader, Write},
+    mem, process,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    thread,
+    time::Duration,
 };
-use std::{
-    fs::File,
-    io::BufReader,
-    process,
-};
-use kira::manager::{AudioManager, AudioManagerSettings};
-use kira::sound::{Sound};
-
 
 // Example cleanup function
 fn cleanup() {
@@ -32,6 +28,12 @@ fn cleanup() {
     io::stdout().flush().unwrap();
     process::exit(0);
 }
+
+static AUDIO_HANDLE: Lazy<OutputStreamHandle> = Lazy::new(|| {
+    let (stream, stream_handle) = OutputStream::try_default().unwrap();
+    mem::forget(stream);
+    stream_handle
+});
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ItemEnum {
@@ -110,17 +112,8 @@ fn picked_to_stored_dealer(
     }
     *dealer_stored_items
 }
+
 fn main() {
-    play_audio("double_or_nothing_bootup.ogg");
-    let mut perfect = false;
-    let mut doub_or_noth = false;
-    let args: Vec<String> = env::args().collect();
-    if args.contains(&"--perfect".to_string()) {
-        perfect = true;
-    }
-    if args.contains(&"--double".to_string()) {
-        doub_or_noth = true;
-    }
     // atomic boolean to track if sigint was received
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
@@ -135,6 +128,19 @@ fn main() {
     .expect("Error setting Ctrl+C handler");
 
     while running.load(Ordering::SeqCst) {
+        play_audio("music/music_main_techno_techno.ogg");
+        let mut perfect = false;
+        let mut doub_or_noth = false;
+        let args: Vec<String> = env::args().collect();
+        if args.contains(&"--perfect".to_string()) {
+            perfect = true;
+        }
+        if args.contains(&"--double".to_string()) {
+            doub_or_noth = true;
+        }
+
+        
+
         clearscreen::clear().expect("Failed to clear screen");
         match play_screen() {
             Selection::Play => {
@@ -158,7 +164,7 @@ fn main() {
                         break;
                     }
                 }
-                println!("----------------\n{live} lives and {blanks} blanks are loaded into the shotgun.\n----------------\n");
+                println!("----------------\nThere are {live} lives and {blanks} blanks.\n----------------\n");
                 let shell_vec = load_shells(live, blanks);
                 //turn owner is used to switch between turns for player/dealer.
                 //true means it is the players turn, false the dealer's turn.
@@ -624,10 +630,12 @@ fn load_shells(live: u8, blanks: u8) -> Vec<bool> {
     for _i in 0..blanks {
         shells.push(false);
         play_audio("load_single_shell.ogg");
+        thread::sleep(Duration::from_millis(1000));
     }
     for _i in 0..live {
         shells.push(true);
         play_audio("load_single_shell.ogg");
+        thread::sleep(Duration::from_millis(1000));
     }
     let mut rng = rand::thread_rng();
     shells.as_mut_slice().shuffle(&mut rng);
@@ -646,56 +654,29 @@ fn check_life(player_health: i8, dealer_health: i8) {
     }
 }
 
-fn play_audio(path: &str) {
-    // Clone path for use in the thread
-    let path_updated = format!("audio/{}", path);
-    if let Err(err) = fs::metadata(&path_updated) {
-        panic!(
-            "Audio file at path {} caused an error. Here is the error: {}",
-            path_updated, err
-        );
-    }
+fn play_audio(path: &'static str) {
+    let path = format!("audio/{path}");
 
-    // Initialize the Kira audio manager with default settings
-    let settings = AudioManagerSettings::default(); // or customize settings if needed
-    let audio_manager = AudioManager::new(settings).unwrap();
-    let audio_manager_ref = Arc::new(audio_manager);
+    let _handle = thread::spawn(move || {
+        // Load a sound from a file, using a path relative to Cargo.toml
+        let file = BufReader::new(File::open(path).unwrap());
 
-    // Spawn a new thread to play audio asynchronously
-    thread::spawn({
-        let path_updated = path_updated.clone();
-        let audio_manager_ref = Arc::clone(&audio_manager_ref);
-        move || {
-            // Load the audio file
-            let sound_id = audio_manager_ref.load_sound(Path::new(&path_updated), SoundSettings::default()).unwrap();
-
-            // Play the sound
-            let handle = audio_manager_ref.play_sound(sound_id.clone()).unwrap();
-
-            // Calculate duration of the audio file
-            let duration_secs = audio_manager_ref.sound_duration(sound_id).as_secs();
-
-            // Sleep for the duration of the audio
-            thread::sleep(Duration::from_secs(duration_secs));
-
-            // Explicitly stop the sound after the duration (optional)
-            handle.stop().unwrap();
-        }
+        // Decode that sound file into a source
+        let source = Decoder::new(file).unwrap();
+        // Play the sound directly on the device
+        AUDIO_HANDLE.play_raw(source.convert_samples()).unwrap();
+        // The sound plays in a separate audio thread,
+        // so we need to keep the main thread alive while it's playing.
+        std::thread::sleep(std::time::Duration::from_secs(5));
     });
 }
-
-
-
 
 fn turn_screen_red() {
     // Execute crossterm commands to clear screen and set red background
     let mut chunk = String::new();
-    let mut space = 9000;
     play_audio("temp_gunshot_live.wav");
-    while space > 0 {
+    for _ in 0..9000 {
         chunk.push(' ');
-
-        space -= 1;
     }
 
     execute!(
@@ -715,7 +696,9 @@ fn turn_screen_red() {
 
 fn credits() {
     clearscreen::clear().expect("Failed to clear screen");
-    println!("All (I think) code made by 1337isnot1337 (or whatever my current github name is). This code is protected by the GPL 3.0 License. It is open source of course; all code visible on my GitHub. If you have any problems with the code, or questions, fill out an issue on the GitHub. If you wish to contribute, send a pull request. Thank you. :3");
+    let contents = fs::read_to_string("credits.txt")
+        .expect("The help.txt file is missing or in the wrong area!");
+    println!("{contents}");
     println!("Press enter to continue...");
     io::stdout().flush().unwrap();
     let mut input = String::new();
@@ -724,27 +707,9 @@ fn credits() {
 }
 fn help() {
     clearscreen::clear().expect("Failed to clear screen");
-    println!("Quick guide to Buckshot Roulette, command line edition.
-
-    Buckshot roulette is a complex twist on the simple 'game' of Russian Roulette. In it, you're pitted against a cold beingâ the dealer. A shotgun is placed in front of you; loaded with some lives, some blanks. It's up to you to kill the dealer. 
-You go first. You have the option to A. Shoot the dealer or B. Shoot yourself. If you hit yourself with a blank, you get another turn. Simple. 
-To help you out, you get some items. The dealer gets them, too.
-
-    Handcuffs:	Causes the dealer to skip their next turn
-    Hand Saw:	Doubles the damage of your shotgun
-    Beer:	Ejects the shell that's in the chamber
-    Cigarettes:	heals one life point
-    Magnifying Glass:	Allows you to examine the shell currently in the chamber
-    
-    If you take the pills, you'll begin a game of double or nothing, which will introduce a new set of items.
-    Double Or Nothing items:
-    Inverter:	Reverses the effect of the shell currently in the chamber. A blank will turn into a live round and a live round turns into a blank.
-    Adrenaline:	The player will steal an item from the dealer's board and use it immediately
-    Burner phone:	Will inform you about a random round in your stack
-    Expired medicine:	50% chance of regaining two lives, 50% chance of losing one life
-    
-Your shaky hands are in control of the gun. Will you make it out alive? 
-   ");
+    let contents = fs::read_to_string("help.txt")
+        .expect("The help.txt file is missing or in the wrong area!");
+    println!("{contents}");
     println!("Press enter to continue...");
     io::stdout().flush().unwrap();
     let mut input = String::new();
