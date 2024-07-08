@@ -15,7 +15,6 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
             .items(&game_info.player_stored_items)
             .interact()
             .unwrap();
-        dbg!(game_info.player_stored_items);
 
         let item_use = &mut game_info.player_stored_items[selection];
         match item_use {
@@ -71,6 +70,7 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
                 }
                 remove_no_item(&mut game_info.player_stored_items, ItemEnum::Handcuffs);
                 remove_no_item(&mut game_info.player_stored_items, ItemEnum::Nothing);
+                continue 'item_selection_loop;
             }
             ItemEnum::Beers => {
                 play_audio("player_use_beer.ogg");
@@ -82,6 +82,7 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
                 game_info.shells_vector.remove(0);
                 remove_no_item(&mut game_info.player_stored_items, ItemEnum::Beers);
                 remove_no_item(&mut game_info.player_stored_items, ItemEnum::Nothing);
+                continue 'item_selection_loop;
             }
 
             ItemEnum::Adren => {
@@ -96,7 +97,8 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
                 remove_no_item(&mut game_info.dealer_stored_items, stolen_item);
                 remove_no_item(&mut game_info.player_stored_items, ItemEnum::Adren);
                 remove_no_item(&mut game_info.player_stored_items, ItemEnum::Nothing);
-                todo!("give the player the item")
+                todo!("give the player the item");
+                continue 'item_selection_loop;
             }
             ItemEnum::BurnPho => {
                 play_audio("player_use_burner_phone.ogg");
@@ -107,22 +109,27 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
                 } else {
                     "blank"
                 };
+                dbg!(&game_info.shells_vector);
                 let place = match shell_number.try_into().unwrap() {
-                    1 => "first",
-                    2 => "second",
-                    3 => "third",
-                    4 => "fourth",
-                    5 => "fifth",
-                    6 => "sixth",
-                    7 => "seventh",
-                    8 => "eigth",
+                    0 => "first",
+                    1 => "second",
+                    2 => "third",
+                    3 => "fourth",
+                    4 => "fifth",
+                    5 => "sixth",
+                    6 => "seventh",
+                    7 => "eigth",
                     _ => panic!("Burner phone panic; number larger than 8. Report this error!"),
                 };
                 println!("You flip open the phone. The {place} shell is {shell_reveal}");
+                continue 'item_selection_loop;
             }
             ItemEnum::Invert => {
+                println!("You flick the switch on the inverter.");
                 play_audio("player_use_inverter.ogg");
-                todo!()
+                game_info.shell = !game_info.shell;
+
+                continue 'item_selection_loop;
             }
             ItemEnum::ExpMed => {
                 play_audio("player_use_medicine.ogg");
@@ -136,12 +143,12 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
                     println!("You choke and fall over.");
                 }
                 remove_no_item(&mut game_info.dealer_stored_items, ItemEnum::ExpMed);
+                continue 'item_selection_loop;
             }
             ItemEnum::Nothing => {
                 remove_no_item(&mut game_info.player_stored_items, ItemEnum::Nothing);
             }
         }
-        dbg!(game_info.player_stored_items);
         break;
     }
 
@@ -212,8 +219,6 @@ fn resolve_player_choice(
 pub fn pick_items(player_stored_items: &mut [ItemEnum; 8], doub_or_noth: bool) {
     let items_vec = &mut generate_items(8, doub_or_noth);
     for _ in 0..4 {
-        println!("dbg");
-        dbg!(&items_vec);
         println!("You got {}, where are you going to place it?", items_vec[0]);
         let selection = FuzzySelect::new()
             .with_prompt("Store the item")

@@ -240,11 +240,11 @@ pub fn picked_to_stored(
     mut picked_items_vec_dealer: Vec<ItemEnum>,
     dealer_stored_items: &mut [ItemEnum; 8],
 ) -> [ItemEnum; 8] {
-    // iterate through each item in dealer_stored_items
+    
+
     for dealer_item in dealer_stored_items.iter_mut() {
-        // check if the dealer_stored_item is Nothing and picked_items_vec_dealer isnt empty
+
         if { *dealer_item == ItemEnum::Nothing } & { !picked_items_vec_dealer.is_empty() } {
-            // replace the Nothing with first item from picked_items_vec_dealer
             *dealer_item = picked_items_vec_dealer.remove(0);
         }
     }

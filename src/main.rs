@@ -270,7 +270,10 @@ fn remove_no_item(picked_items_vec: &mut [ItemEnum; 8], item_type: ItemEnum) {
     if let Some(index) = picked_items_vec.iter().position(|&x| x == item_type) {
         picked_items_vec[index] = ItemEnum::Nothing;
     } else {
-        panic!("Item {item_type:?} not found in the array");
+        dbg!(picked_items_vec);
+        println!("{item_type}");
+        panic!("Item {item_type:?} not found in the array. ");
+
     }
 }
 
