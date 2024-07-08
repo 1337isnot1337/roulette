@@ -1,30 +1,13 @@
-use ansi_term::Style;
-use core::fmt;
-use crossterm::{
-    execute,
-    style::{Color, Print, ResetColor, SetBackgroundColor},
-    terminal::{Clear, ClearType},
-};
 use dialoguer::FuzzySelect;
-use once_cell::sync::Lazy;
-use rand::{seq::SliceRandom, Rng};
-use rodio::{Decoder, OutputStream, OutputStreamHandle, Source};
+use rand::Rng;
 use std::{
-    env,
-    fs::{self, File},
-    io::{self, BufReader, Write},
-    mem, process,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
     thread,
     time::Duration,
 };
 use crate::{check_life, generate_items, italics, play_audio, remove_no_item, turn_screen_red, GameInfo, ItemEnum, TargetEnum};
 
 #[allow(clippy::too_many_lines)]
-pub fn player_turn(game_info: &mut GameInfo) -> bool {
+pub fn turn(game_info: &mut GameInfo) -> bool {
     let mut damage: i8 = 1;
     'item_selection_loop: loop {
         let selection = FuzzySelect::new()

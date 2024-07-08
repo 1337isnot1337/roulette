@@ -1,6 +1,6 @@
 use ansi_term::Style;
-use dealer::{dealer_turn, picked_to_stored};
-use player::{pick_items, player_turn};
+use dealer::picked_to_stored;
+use player::pick_items;
 use core::fmt;
 use crossterm::{
     execute,
@@ -183,13 +183,13 @@ fn main() {
                     check_life(player_health, dealer_health);
                     match turn_owner {
                         TargetEnum::Player => {
-                            player_extraturn = player_turn(&mut game_info);
+                            player_extraturn = player::turn(&mut game_info);
                             if !player_extraturn {
                                 turn_owner = TargetEnum::Dealer;
                             };
                         }
                         TargetEnum::Dealer => {
-                            dealer_extraturn = dealer_turn(current_bullets_vec, &mut game_info);
+                            dealer_extraturn = dealer::turn(current_bullets_vec, &mut game_info);
                             if !dealer_extraturn {
                                 turn_owner = TargetEnum::Player;
                             };

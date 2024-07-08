@@ -1,31 +1,12 @@
-use ansi_term::Style;
-use core::fmt;
-use crossterm::{
-    execute,
-    style::{Color, Print, ResetColor, SetBackgroundColor},
-    terminal::{Clear, ClearType},
-};
-use dialoguer::FuzzySelect;
-use once_cell::sync::Lazy;
-use rand::{seq::SliceRandom, Rng};
-use rodio::{Decoder, OutputStream, OutputStreamHandle, Source};
-use std::{
-    env,
-    fs::{self, File},
-    io::{self, BufReader, Write},
-    mem, process,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-    thread,
-    time::Duration,
+use rand::Rng;
+use std::{thread, time::Duration};
+
+use crate::{
+    check_life, italics, play_audio, remove_no_item, turn_screen_red, GameInfo, ItemEnum,
+    TargetEnum,
 };
 
-use crate::{check_life, italics, play_audio, remove_no_item, turn_screen_red, GameInfo, ItemEnum, TargetEnum};
-
-
-pub fn dealer_turn(current_bullets_vec: Vec<bool>, game_info: &mut GameInfo) -> bool {
+pub fn turn(current_bullets_vec: Vec<bool>, game_info: &mut GameInfo) -> bool {
     let mut damage = 1;
     // future goal: add logic for having dealer pick certain items
     let mut shell_knowledge = false;
@@ -34,27 +15,27 @@ pub fn dealer_turn(current_bullets_vec: Vec<bool>, game_info: &mut GameInfo) -> 
     'dealer_use_items: loop {
         if game_info.dealer_stored_items.contains(&ItemEnum::Cigs) & { game_info.dealer_health < 3 }
         {
-            dealer_item_use(ItemEnum::Cigs, game_info, &mut damage);
+            item_use(ItemEnum::Cigs, game_info, &mut damage);
             continue 'dealer_use_items;
         }
         if game_info.dealer_stored_items.contains(&ItemEnum::MagGlass) && !shell_knowledge {
-            shell_knowledge = dealer_item_use(ItemEnum::MagGlass, game_info, &mut damage);
+            shell_knowledge = item_use(ItemEnum::MagGlass, game_info, &mut damage);
             continue 'dealer_use_items;
         }
         if game_info.dealer_stored_items.contains(&ItemEnum::Saws)
             & shell_knowledge
             & game_info.shell
         {
-            dealer_item_use(ItemEnum::Saws, game_info, &mut damage);
+            item_use(ItemEnum::Saws, game_info, &mut damage);
             continue 'dealer_use_items;
         }
         if game_info.dealer_stored_items.contains(&ItemEnum::Handcuffs) && !handcuff_player {
-            dealer_item_use(ItemEnum::Handcuffs, game_info, &mut damage);
+            item_use(ItemEnum::Handcuffs, game_info, &mut damage);
             handcuff_player = !handcuff_player;
             continue 'dealer_use_items;
         }
         if game_info.dealer_stored_items.contains(&ItemEnum::Beers) && !shell_knowledge & coinflip {
-            dealer_item_use(ItemEnum::Beers, game_info, &mut damage);
+            item_use(ItemEnum::Beers, game_info, &mut damage);
             break 'dealer_use_items;
         }
         break;
@@ -110,8 +91,7 @@ pub fn dealer_turn(current_bullets_vec: Vec<bool>, game_info: &mut GameInfo) -> 
     extraturn
 }
 
-
-pub fn dealer_item_use(item_type: ItemEnum, game_info: &mut GameInfo, damage: &mut u8) -> bool {
+pub fn item_use(item_type: ItemEnum, game_info: &mut GameInfo, damage: &mut u8) -> bool {
     let mut knowledge_of_shell = false;
     match item_type {
         ItemEnum::Cigs => {
