@@ -1,4 +1,6 @@
 use ansi_term::Style;
+use dealer::{dealer_turn, picked_to_stored_dealer};
+use player::{pick_items, player_turn};
 use core::fmt;
 use crossterm::{
     execute,
@@ -22,18 +24,31 @@ use std::{
     time::Duration,
 };
 
-// Example cleanup function
-fn cleanup() {
-    print!("\x1B[?25h");
-    io::stdout().flush().unwrap();
-    process::exit(0);
-}
+mod dealer;
+mod player;
 
 static AUDIO_HANDLE: Lazy<OutputStreamHandle> = Lazy::new(|| {
     let (stream, stream_handle) = OutputStream::try_default().unwrap();
     mem::forget(stream);
     stream_handle
 });
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Selection {
+    Play,
+    Help,
+    Credits,
+}
+impl fmt::Display for Selection {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let printable = match *self {
+            Selection::Play => "Play",
+            Selection::Help => "Help",
+            Selection::Credits => "Credits",
+        };
+        write!(f, "{printable}")
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ItemEnum {
@@ -92,27 +107,6 @@ impl fmt::Display for TargetEnum {
     }
 }
 
-macro_rules! italics {
-    ($text:expr) => {{
-        let styled_text = Style::new().italic().paint($text);
-        println!("{}", styled_text);
-    }};
-}
-fn picked_to_stored_dealer(
-    mut picked_items_vec_dealer: Vec<ItemEnum>,
-    dealer_stored_items: &mut [ItemEnum; 8],
-) -> [ItemEnum; 8] {
-    // iterate through each item in dealer_stored_items
-    for dealer_item in dealer_stored_items.iter_mut() {
-        // check if the dealer_stored_item is Nothing and picked_items_vec_dealer isnt empty
-        if { *dealer_item == ItemEnum::Nothing } & { !picked_items_vec_dealer.is_empty() } {
-            // replace the Nothing with first item from picked_items_vec_dealer
-            *dealer_item = picked_items_vec_dealer.remove(0);
-        }
-    }
-    *dealer_stored_items
-}
-
 fn main() {
     // atomic boolean to track if sigint was received
     let running = Arc::new(AtomicBool::new(true));
@@ -139,8 +133,6 @@ fn main() {
             doub_or_noth = true;
         }
 
-        
-
         clearscreen::clear().expect("Failed to clear screen");
         match play_screen() {
             Selection::Play => {
@@ -155,8 +147,8 @@ fn main() {
                     generate_items(4, doub_or_noth),
                     &mut dealer_stored_items,
                 );
-                let mut live;
-                let mut blanks;
+                let mut live: u8;
+                let mut blanks: u8;
                 loop {
                     live = rand::thread_rng().gen_range(1..=4);
                     blanks = rand::thread_rng().gen_range(1..=4);
@@ -165,16 +157,16 @@ fn main() {
                     }
                 }
                 println!("----------------\nThere are {live} lives and {blanks} blanks.\n----------------\n");
-                let shell_vec = load_shells(live, blanks);
+                let shell_vec: Vec<bool> = load_shells(live, blanks);
                 //turn owner is used to switch between turns for player/dealer.
                 //true means it is the players turn, false the dealer's turn.
                 let mut turn_owner: TargetEnum = TargetEnum::Player;
-                let mut turn = 1;
-                let mut player_extraturn = false;
-                let mut dealer_extraturn = false;
+                let mut turn: usize = 1;
+                let mut player_extraturn: bool;
+                let mut dealer_extraturn:bool;
 
                 for shell in &shell_vec {
-                    let mut game_info = GameInfo {
+                    let mut game_info: GameInfo = GameInfo {
                         shell: *shell,
                         dealer_health,
                         player_health,
@@ -191,7 +183,7 @@ fn main() {
                     check_life(player_health, dealer_health);
                     match turn_owner {
                         TargetEnum::Player => {
-                            player_extraturn = your_turn(&mut game_info);
+                            player_extraturn = player_turn(&mut game_info);
                             if !player_extraturn {
                                 turn_owner = TargetEnum::Dealer;
                             };
@@ -263,357 +255,9 @@ fn generate_items(len: usize, doub_or_no: bool) -> Vec<ItemEnum> {
     }
 
     //yes ik its overkill but this is my code not urs
-    let trimmed_vec = items_vec.iter().take(len).copied().collect::<Vec<_>>();
+    let trimmed_vec: Vec<ItemEnum> = items_vec.iter().take(len).copied().collect::<Vec<_>>();
 
     trimmed_vec
-}
-
-fn pick_items(player_stored_items: &mut [ItemEnum; 8], doub_or_noth: bool) {
-    let mut items_vec = generate_items(8, doub_or_noth);
-    for i in 0..4 {
-        println!("You got {}, where are you going to place it?", items_vec[i]);
-        let selection = FuzzySelect::new()
-            .with_prompt("Store the item")
-            .report(false)
-            .items(player_stored_items)
-            .interact()
-            .unwrap();
-
-        player_stored_items[selection] = items_vec[i]; // replace item in player_stored_items with items_vec[i]
-        let index = items_vec.iter().position(|&x| x == items_vec[i]).unwrap();
-        items_vec.remove(index);
-    }
-}
-
-fn dealer_item_use(item_type: ItemEnum, game_info: &mut GameInfo, damage: &mut u8) -> bool {
-    let mut knowledge_of_shell = false;
-    match item_type {
-        ItemEnum::Cigs => {
-            if game_info.dealer_health == 3 {
-                println!(
-                "ERROR: THIS CODE SHOULD NOT BE REACHABLE! PLEASE REPORT THIS BUG. The dealer lights one of the cigs."
-            );
-            } else {
-                println!("The dealer lights one of the cigs.");
-                game_info.dealer_health += 1;
-            }
-            remove_no_item(&mut game_info.dealer_stored_items, ItemEnum::Cigs);
-        }
-        ItemEnum::Saws => {
-            println!("Shhk. The dealer slices off the tip of the gun. It'll do 2 damage now.");
-            *damage = 2;
-            remove_no_item(&mut game_info.dealer_stored_items, ItemEnum::Saws);
-        }
-        ItemEnum::MagGlass => {
-            println!(
-                "The dealer looks down at the gun with an old magnifying glass. You see him smirk."
-            );
-            knowledge_of_shell = true;
-
-            remove_no_item(&mut game_info.dealer_stored_items, ItemEnum::MagGlass);
-        }
-        ItemEnum::Beers => {
-            if game_info.shell {
-                println!("The dealer gives the shotgun a pump. A live round drops out.");
-            } else {
-                println!("The dealer gives the shotgun a pump. A blank round drops out.");
-            };
-            match game_info.turn_owner {
-                TargetEnum::Player => {
-                    game_info.turn_owner = TargetEnum::Dealer;
-                }
-                TargetEnum::Dealer => {
-                    game_info.turn_owner = TargetEnum::Player;
-                }
-            }
-            remove_no_item(&mut game_info.dealer_stored_items, ItemEnum::Beers);
-        }
-        ItemEnum::Handcuffs => {
-            println!("The dealer grabs onto your hand. When he lets go, your hands are cuffed.");
-            if game_info.turn_owner == TargetEnum::Dealer {
-                game_info.turn_owner = TargetEnum::Player;
-            }
-            remove_no_item(&mut game_info.dealer_stored_items, ItemEnum::Handcuffs);
-        }
-        ItemEnum::Nothing => {
-            println!("ERROR: THIS CODE SHOULD NOT BE REACHABLE! PLEASE REPORT THIS BUG.");
-        }
-        ItemEnum::Adren => todo!(),
-        ItemEnum::BurnPho => todo!(),
-        ItemEnum::Invert => todo!(),
-        ItemEnum::ExpMed => todo!(),
-    }
-    knowledge_of_shell
-}
-
-fn dealer_turn(current_bullets_vec: Vec<bool>, game_info: &mut GameInfo) -> bool {
-    let mut damage = 1;
-    // future goal: add logic for having dealer pick certain items
-    let mut shell_knowledge = false;
-    let mut handcuff_player: bool = false;
-    let coinflip: bool = rand::thread_rng().gen();
-    'dealer_use_items: loop {
-        if game_info.dealer_stored_items.contains(&ItemEnum::Cigs) & { game_info.dealer_health < 3 }
-        {
-            dealer_item_use(ItemEnum::Cigs, game_info, &mut damage);
-            continue 'dealer_use_items;
-        }
-        if game_info.dealer_stored_items.contains(&ItemEnum::MagGlass) && !shell_knowledge {
-            shell_knowledge = dealer_item_use(ItemEnum::MagGlass, game_info, &mut damage);
-            continue 'dealer_use_items;
-        }
-        if game_info.dealer_stored_items.contains(&ItemEnum::Saws)
-            & shell_knowledge
-            & game_info.shell
-        {
-            dealer_item_use(ItemEnum::Saws, game_info, &mut damage);
-            continue 'dealer_use_items;
-        }
-        if game_info.dealer_stored_items.contains(&ItemEnum::Handcuffs) && !handcuff_player {
-            dealer_item_use(ItemEnum::Handcuffs, game_info, &mut damage);
-            handcuff_player = !handcuff_player;
-            continue 'dealer_use_items;
-        }
-        if game_info.dealer_stored_items.contains(&ItemEnum::Beers) && !shell_knowledge & coinflip {
-            dealer_item_use(ItemEnum::Beers, game_info, &mut damage);
-            break 'dealer_use_items;
-        }
-        break;
-    }
-
-    let choice: bool = if game_info.perfect | shell_knowledge {
-        game_info.shell
-    } else {
-        //logic for the dealer's choice
-        let mut lives = 0;
-        let mut blanks = 0;
-
-        for item in current_bullets_vec {
-            if item {
-                lives += 1;
-            } else {
-                blanks += 1;
-            }
-        }
-        //if there are more lives than blanks, choose to shoot player. Vice versa and such.
-        lives >= blanks
-    };
-    //true means dealer shoots you, false means dealer shoots itself
-    let mut extraturn = false;
-    if choice {
-        println!("The dealer points the gun at your face.");
-        thread::sleep(Duration::from_secs(1));
-        if game_info.shell {
-            turn_screen_red();
-            println!("Dealer shot you.");
-            game_info.player_health -= 1;
-        } else {
-            play_audio("temp_gunshot_blank.wav");
-            italics!("click");
-        }
-    } else {
-        println!("The dealer points the gun at its face.");
-        thread::sleep(Duration::from_secs(1));
-        if game_info.shell {
-            turn_screen_red();
-            println!("Dealer shot themselves.");
-            game_info.dealer_health -= 1;
-        } else {
-            play_audio("temp_gunshot_blank.wav");
-            italics!("click");
-            println!("Extra turn for dealer.");
-            extraturn = true;
-        }
-    }
-
-    thread::sleep(Duration::from_secs(1));
-    check_life(game_info.player_health, game_info.dealer_health);
-    extraturn
-}
-#[allow(clippy::too_many_lines)]
-fn your_turn(game_info: &mut GameInfo) -> bool {
-    let mut damage: i8 = 1;
-    'item_selection_loop: loop {
-        let selection = FuzzySelect::new()
-            .with_prompt("Pick an item to use")
-            .items(&game_info.player_stored_items)
-            .interact()
-            .unwrap();
-
-        let item_use = &mut game_info.player_stored_items[selection];
-        match item_use {
-            ItemEnum::Cigs => {
-                if game_info.player_health == 3 {
-                    println!(
-                    "You light one of the cigs. Your head feels hazy. It doesn't seem to do much."
-                );
-                } else {
-                    println!("You light one of the cigs. Your head feels hazy, but you feel power coursing through your veins.");
-                    game_info.player_health += 1;
-                }
-                remove_no_item(&mut game_info.player_stored_items, ItemEnum::Cigs);
-                remove_no_item(&mut game_info.player_stored_items, ItemEnum::Nothing);
-                continue 'item_selection_loop;
-            }
-            ItemEnum::Saws => {
-                println!("Shhk. You slice off the tip of the gun. It'll do 2 damage now.");
-                damage = 2;
-                remove_no_item(&mut game_info.player_stored_items, ItemEnum::Saws);
-                remove_no_item(&mut game_info.player_stored_items, ItemEnum::Nothing);
-                continue 'item_selection_loop;
-            }
-            ItemEnum::MagGlass => {
-                if game_info.shell {
-                    println!(
-                        "Upon closer inspection, you realize that there's a live round loaded."
-                    );
-                } else {
-                    println!(
-                        "Upon closer inspection, you realize that there's a blank round loaded."
-                    );
-                }
-                remove_no_item(&mut game_info.player_stored_items, ItemEnum::MagGlass);
-                remove_no_item(&mut game_info.player_stored_items, ItemEnum::Nothing);
-                continue 'item_selection_loop;
-            }
-            ItemEnum::Handcuffs => {
-                println!(
-                    "The dealer grabs the handcuffs from your outstretched hand, putting them on."
-                );
-                match game_info.turn_owner {
-                    TargetEnum::Player => {
-                        game_info.turn_owner = TargetEnum::Dealer;
-                    }
-                    TargetEnum::Dealer => {
-                        game_info.turn_owner = TargetEnum::Player;
-                    }
-                }
-                remove_no_item(&mut game_info.player_stored_items, ItemEnum::Handcuffs);
-            }
-            ItemEnum::Beers => {
-                if game_info.shell {
-                    println!("You give the shotgun a pump. A live round drops out.");
-                } else {
-                    println!("You give the shotgun a pump. A blank round drops out.");
-                };
-                match game_info.turn_owner {
-                    TargetEnum::Player => {
-                        game_info.turn_owner = TargetEnum::Dealer;
-                    }
-                    TargetEnum::Dealer => {
-                        game_info.turn_owner = TargetEnum::Player;
-                    }
-                }
-                remove_no_item(&mut game_info.player_stored_items, ItemEnum::Beers);
-                remove_no_item(&mut game_info.player_stored_items, ItemEnum::Nothing);
-            }
-            ItemEnum::Adren => {
-                println!("You jam the rusty needle into your thigh.");
-                let stolen_item = game_info.dealer_stored_items[FuzzySelect::new()
-                    .with_prompt("Pick an item to steal from the dealer")
-                    .items(&game_info.dealer_stored_items)
-                    .interact()
-                    .unwrap()];
-
-                remove_no_item(&mut game_info.dealer_stored_items, stolen_item);
-                remove_no_item(&mut game_info.player_stored_items, ItemEnum::Adren);
-                remove_no_item(&mut game_info.player_stored_items, ItemEnum::Nothing);
-                todo!("give the player the item")
-            }
-            ItemEnum::BurnPho => {
-                let shell_number: usize =
-                    rand::thread_rng().gen_range(0..{ game_info.shells_vector.len() });
-                let shell_reveal = if game_info.shells_vector[shell_number] {
-                    "live"
-                } else {
-                    "blank"
-                };
-                let place = match shell_number.try_into().unwrap() {
-                    1 => "first",
-                    2 => "second",
-                    3 => "third",
-                    4 => "fourth",
-                    5 => "fifth",
-                    6 => "sixth",
-                    7 => "seventh",
-                    8 => "eigth",
-                    _ => panic!("Burner phone panic; number larger than 8. Report this error!"),
-                };
-                println!("You flip open the phone. The {place} shell is {shell_reveal}");
-            }
-            ItemEnum::Invert => {
-                todo!()
-            }
-            ItemEnum::ExpMed => {}
-            ItemEnum::Nothing => {
-                remove_no_item(&mut game_info.player_stored_items, ItemEnum::Nothing);
-            }
-        }
-        break;
-    }
-
-    let targets: [TargetEnum; 2] = [TargetEnum::Player, TargetEnum::Dealer];
-    let selection = FuzzySelect::new()
-        .with_prompt("Shoot self or Dealer")
-        .items(&targets)
-        .interact()
-        .unwrap();
-
-    let choice = targets[selection];
-
-    let extraturn = resolve_user_choice(
-        choice,
-        game_info.shell,
-        &mut game_info.player_health,
-        &mut game_info.dealer_health,
-        damage,
-    );
-    thread::sleep(Duration::from_secs(1));
-    check_life(game_info.player_health, game_info.dealer_health);
-    extraturn
-}
-
-fn resolve_user_choice(
-    choice: TargetEnum,
-    shell: bool,
-    player_health: &mut i8,
-    dealer_health: &mut i8,
-    damage: i8,
-) -> bool {
-    let mut extraturn = false;
-    match choice {
-        TargetEnum::Player => {
-            println!("You point the gun at your face.");
-            thread::sleep(Duration::from_secs(1));
-            if shell {
-                turn_screen_red();
-
-                println!("You shot yourself.");
-                *player_health -= 1;
-            } else {
-                play_audio("temp_gunshot_blank.wav");
-                italics!("click");
-                thread::sleep(Duration::from_secs(1));
-                println!("Extra turn for you.");
-                extraturn = true;
-            }
-        }
-        TargetEnum::Dealer => {
-            println!("You point the gun towards the dealer.");
-            thread::sleep(Duration::from_secs(1));
-            if shell {
-                turn_screen_red();
-
-                println!("You shot the dealer.");
-
-                *dealer_health -= damage;
-            } else {
-                play_audio("temp_gunshot_blank.wav");
-                italics!("click");
-            }
-        }
-    }
-    extraturn
 }
 
 fn remove_no_item(picked_items_vec: &mut [ItemEnum; 8], item_type: ItemEnum) {
@@ -655,18 +299,13 @@ fn check_life(player_health: i8, dealer_health: i8) {
 }
 
 fn play_audio(path: &'static str) {
-    let path = format!("audio/{path}");
+    let path: String = format!("audio/{path}");
 
-    let _handle = thread::spawn(move || {
-        // Load a sound from a file, using a path relative to Cargo.toml
-        let file = BufReader::new(File::open(path).unwrap());
-
-        // Decode that sound file into a source
-        let source = Decoder::new(file).unwrap();
-        // Play the sound directly on the device
+    let _handle: thread::JoinHandle<()> = thread::spawn(move || {
+        
+        let file: BufReader<File> = BufReader::new(File::open(path).unwrap());
+        let source: Decoder<BufReader<File>> = Decoder::new(file).unwrap();
         AUDIO_HANDLE.play_raw(source.convert_samples()).unwrap();
-        // The sound plays in a separate audio thread,
-        // so we need to keep the main thread alive while it's playing.
         std::thread::sleep(std::time::Duration::from_secs(5));
     });
 }
@@ -728,19 +367,15 @@ fn play_screen() -> Selection {
 
     options_vec[selection]
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Selection {
-    Play,
-    Help,
-    Credits,
+
+fn cleanup() {
+    print!("\x1B[?25h");
+    io::stdout().flush().unwrap();
+    process::exit(0);
 }
-impl fmt::Display for Selection {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let printable = match *self {
-            Selection::Play => "Play",
-            Selection::Help => "Help",
-            Selection::Credits => "Credits",
-        };
-        write!(f, "{printable}")
-    }
+
+
+fn italics(text: &str) {
+    let styled_text = Style::new().italic().paint(text);
+    println!("{styled_text}");
 }
