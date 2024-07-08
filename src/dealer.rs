@@ -6,9 +6,13 @@ use crate::{
     TargetEnum,
 };
 
-
-
-fn dealer_use_items(current_bullets_vec: &Vec<bool>, game_info: &mut GameInfo, mut damage: u8, mut shell_knowledge: bool, mut handcuff_player: bool) {
+fn dealer_item_logic(
+    current_bullets_vec: &Vec<bool>,
+    game_info: &mut GameInfo,
+    mut damage: u8,
+    mut shell_knowledge: bool,
+    mut handcuff_player: bool,
+) -> bool {
     let coinflip: bool = rand::thread_rng().gen();
     let mut lives = 0;
     let mut blanks = 0;
@@ -20,89 +24,99 @@ fn dealer_use_items(current_bullets_vec: &Vec<bool>, game_info: &mut GameInfo, m
             blanks += 1;
         }
     }
-    'dealer_use_items: loop {
+    'dealer_item_logic: loop {
         if game_info.dealer_stored_items.contains(&ItemEnum::Cigs) & { game_info.dealer_health < 3 }
         {
             item_use(ItemEnum::Cigs, game_info, &mut damage);
             play_audio("dealer_use_cigarettes.ogg");
             thread::sleep(Duration::from_millis(500));
 
-            continue 'dealer_use_items;
+            continue 'dealer_item_logic;
         }
         if game_info.dealer_stored_items.contains(&ItemEnum::MagGlass) && !shell_knowledge {
             shell_knowledge = item_use(ItemEnum::MagGlass, game_info, &mut damage);
             play_audio("dealer_use_magnifier.ogg");
             thread::sleep(Duration::from_millis(500));
-            continue 'dealer_use_items;
+            println!("{shell_knowledge}");
+            continue 'dealer_item_logic;
         }
         if game_info.dealer_stored_items.contains(&ItemEnum::Saws)
             & shell_knowledge
-            & game_info.shell
+            & game_info.shells_vector[0]
         {
             item_use(ItemEnum::Saws, game_info, &mut damage);
             play_audio("dealer_use_handsaw.ogg");
             thread::sleep(Duration::from_millis(500));
-            continue 'dealer_use_items;
+            continue 'dealer_item_logic;
         }
         if game_info.dealer_stored_items.contains(&ItemEnum::Handcuffs) && !handcuff_player {
             item_use(ItemEnum::Handcuffs, game_info, &mut damage);
             play_audio("dealer_use_cigarettes.ogg");
             thread::sleep(Duration::from_millis(500));
             handcuff_player = !handcuff_player;
-            continue 'dealer_use_items;
+            continue 'dealer_item_logic;
         }
         if game_info.dealer_stored_items.contains(&ItemEnum::Beers) && !shell_knowledge & coinflip {
             item_use(ItemEnum::Beers, game_info, &mut damage);
             play_audio("dealer_use_beer.ogg");
             thread::sleep(Duration::from_millis(500));
-            break 'dealer_use_items;
+            continue 'dealer_item_logic;
         }
         if game_info.double_or_nothing {
             if game_info.dealer_stored_items.contains(&ItemEnum::Adren) && {
-                !game_info.player_stored_items.is_empty()
+                !game_info.player_inventory.is_empty()
             } {
-                item_use(ItemEnum::Beers, game_info, &mut damage);
+                item_use(ItemEnum::Adren, game_info, &mut damage);
                 play_audio("dealer_use_adrenaline.ogg");
                 thread::sleep(Duration::from_millis(500));
-                break 'dealer_use_items;
+                continue 'dealer_item_logic;
             }
             if game_info.dealer_stored_items.contains(&ItemEnum::BurnPho)
                 && lives != 0
                 && game_info.shells_vector.len() > 1
             {
-                item_use(ItemEnum::Beers, game_info, &mut damage);
+                item_use(ItemEnum::BurnPho, game_info, &mut damage);
                 play_audio("dealer_use_burner_phone.ogg");
                 thread::sleep(Duration::from_millis(500));
-                break 'dealer_use_items;
+                continue 'dealer_item_logic;
             }
             if game_info.dealer_stored_items.contains(&ItemEnum::Invert) && {
-                (shell_knowledge && !game_info.shell) || (lives > blanks)
+                (shell_knowledge && !game_info.shells_vector[0]) || (lives > blanks)
             } {
-                item_use(ItemEnum::Beers, game_info, &mut damage);
+                item_use(ItemEnum::Invert, game_info, &mut damage);
                 play_audio("dealer_use_inverter.ogg");
                 thread::sleep(Duration::from_millis(500));
-                break 'dealer_use_items;
+                continue 'dealer_item_logic;
             }
-            if game_info.dealer_stored_items.contains(&ItemEnum::ExpMed) && game_info.dealer_health == 2 {
-                item_use(ItemEnum::Beers, game_info, &mut damage);
+            if game_info.dealer_stored_items.contains(&ItemEnum::ExpMed)
+                && game_info.dealer_health == 2
+            {
+                item_use(ItemEnum::ExpMed, game_info, &mut damage);
                 play_audio("dealer_use_medicine.ogg");
                 thread::sleep(Duration::from_millis(500));
-                break 'dealer_use_items;
+                continue 'dealer_item_logic;
             }
         }
-        break;
+        break shell_knowledge;
     }
 }
 
 pub fn turn(current_bullets_vec: Vec<bool>, game_info: &mut GameInfo) -> bool {
     let damage: u8 = 1;
     // future goal: add logic for having dealer pick certain items
-    let shell_knowledge = false;
+    let mut shell_knowledge = false;
     let handcuff_player: bool = false;
-    dealer_use_items(&current_bullets_vec, game_info, damage, shell_knowledge, handcuff_player);
+    shell_knowledge = dealer_item_logic(
+        &current_bullets_vec,
+        game_info,
+        damage,
+        shell_knowledge,
+        handcuff_player,
+    );
 
     let choice: bool = if game_info.perfect | shell_knowledge {
-        game_info.shell
+        println!("perf");
+        game_info.shells_vector[0]
     } else {
         //logic for the dealer's choice
         let mut lives = 0;
@@ -118,25 +132,32 @@ pub fn turn(current_bullets_vec: Vec<bool>, game_info: &mut GameInfo) -> bool {
         //if there are more lives than blanks, choose to shoot player. Vice versa and such.
         lives >= blanks
     };
+    println!(
+        "choice is {choice} and shell is {}",
+        game_info.shells_vector[0]
+    );
     //true means dealer shoots you, false means dealer shoots itself
     let mut extraturn = false;
     if choice {
         println!("The dealer points the gun at your face.");
         thread::sleep(Duration::from_secs(1));
-        if game_info.shell {
+        if game_info.shells_vector[0] {
             turn_screen_red();
             println!("Dealer shot you.");
+            game_info.turn_owner = TargetEnum::Player;
             game_info.player_health -= 1;
         } else {
             play_audio("temp_gunshot_blank.wav");
+            game_info.turn_owner = TargetEnum::Player;
             italics("click");
         }
     } else {
         println!("The dealer points the gun at its face.");
         thread::sleep(Duration::from_secs(1));
-        if game_info.shell {
+        if game_info.shells_vector[0] {
             turn_screen_red();
             println!("Dealer shot themselves.");
+            game_info.turn_owner = TargetEnum::Player;
             game_info.dealer_health -= 1;
         } else {
             play_audio("temp_gunshot_blank.wav");
@@ -156,7 +177,7 @@ pub fn item_use(item_type: ItemEnum, game_info: &mut GameInfo, damage: &mut u8) 
     match item_type {
         ItemEnum::Cigs => {
             if game_info.dealer_health == 3 {
-                println!(
+                panic!(
                 "ERROR: THIS CODE SHOULD NOT BE REACHABLE! PLEASE REPORT THIS BUG. The dealer lights one of the cigs."
             );
             } else {
@@ -179,19 +200,13 @@ pub fn item_use(item_type: ItemEnum, game_info: &mut GameInfo, damage: &mut u8) 
             remove_no_item(&mut game_info.dealer_stored_items, ItemEnum::MagGlass);
         }
         ItemEnum::Beers => {
-            if game_info.shell {
+            if game_info.shells_vector[0] {
                 println!("The dealer gives the shotgun a pump. A live round drops out.");
             } else {
                 println!("The dealer gives the shotgun a pump. A blank round drops out.");
             };
-            match game_info.turn_owner {
-                TargetEnum::Player => {
-                    game_info.turn_owner = TargetEnum::Dealer;
-                }
-                TargetEnum::Dealer => {
-                    game_info.turn_owner = TargetEnum::Player;
-                }
-            }
+            game_info.shells_vector.remove(0);
+
             remove_no_item(&mut game_info.dealer_stored_items, ItemEnum::Beers);
         }
         ItemEnum::Handcuffs => {
@@ -202,24 +217,21 @@ pub fn item_use(item_type: ItemEnum, game_info: &mut GameInfo, damage: &mut u8) 
             remove_no_item(&mut game_info.dealer_stored_items, ItemEnum::Handcuffs);
         }
         ItemEnum::Nothing => {
-            println!("ERROR: THIS CODE SHOULD NOT BE REACHABLE! PLEASE REPORT THIS BUG.");
+            panic!("ERROR: THIS CODE SHOULD NOT BE REACHABLE! PLEASE REPORT THIS BUG.");
         }
 
         ItemEnum::Adren => {
             println!("The dealer takes a hit of the adrenaline.");
             remove_no_item(&mut game_info.dealer_stored_items, ItemEnum::Adren);
-        
-        },
+        }
         ItemEnum::BurnPho => {
             println!("The dealer uses the burner phone.");
             remove_no_item(&mut game_info.dealer_stored_items, ItemEnum::BurnPho);
-        
-        },
+        }
         ItemEnum::Invert => {
             println!("The dealer uses the inverter.");
             remove_no_item(&mut game_info.dealer_stored_items, ItemEnum::Invert);
-        
-        },
+        }
         ItemEnum::ExpMed => {
             println!("The dealer takes the expired medicine.");
             let coinflip: bool = rand::thread_rng().gen();
@@ -231,8 +243,7 @@ pub fn item_use(item_type: ItemEnum, game_info: &mut GameInfo, damage: &mut u8) 
                 println!("The dealer chokes and falls over.");
             }
             remove_no_item(&mut game_info.dealer_stored_items, ItemEnum::ExpMed);
-        
-        },
+        }
     }
     knowledge_of_shell
 }
@@ -240,10 +251,7 @@ pub fn picked_to_stored(
     mut picked_items_vec_dealer: Vec<ItemEnum>,
     dealer_stored_items: &mut [ItemEnum; 8],
 ) -> [ItemEnum; 8] {
-    
-
     for dealer_item in dealer_stored_items.iter_mut() {
-
         if { *dealer_item == ItemEnum::Nothing } & { !picked_items_vec_dealer.is_empty() } {
             *dealer_item = picked_items_vec_dealer.remove(0);
         }

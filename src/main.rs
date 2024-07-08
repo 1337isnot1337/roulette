@@ -82,11 +82,10 @@ impl fmt::Display for ItemEnum {
 }
 
 struct GameInfo {
-    shell: bool,
     dealer_health: i8,
     player_health: i8,
     turn_owner: TargetEnum,
-    player_stored_items: [ItemEnum; 8],
+    player_inventory: [ItemEnum; 8],
     dealer_stored_items: [ItemEnum; 8],
     perfect: bool,
     double_or_nothing: bool,
@@ -121,9 +120,9 @@ fn main() {
         r.store(false, Ordering::SeqCst);
     })
     .expect("Error setting Ctrl+C handler");
+    play_audio("music/music_main_techno_techno.ogg");
 
     while running.load(Ordering::SeqCst) {
-        play_audio("music/music_main_techno_techno.ogg");
         let mut perfect = false;
         let mut double_or_nothing = false;
         let args: Vec<String> = env::args().collect();
@@ -135,16 +134,15 @@ fn main() {
         }
 
         clearscreen::clear().expect("Failed to clear screen");
+        let (player_health, dealer_health) = (3i8, 3i8);
         match play_screen() {
             Selection::Play => {
-                
-                    let (player_health, dealer_health) = (3i8, 3i8);
-                    loop {
-                    let (mut dealer_stored_items, mut player_stored_items) =
+                loop {
+                    let (mut dealer_stored_items, mut player_inventory) =
                         ([ItemEnum::Nothing; 8], [ItemEnum::Nothing; 8]);
 
                     // add code for new items
-                    pick_items(&mut player_stored_items, double_or_nothing);
+                    pick_items(&mut player_inventory, double_or_nothing);
 
                     dealer_stored_items = picked_to_stored(
                         generate_items(4, double_or_nothing),
@@ -159,8 +157,17 @@ fn main() {
                             break;
                         }
                     }
-                    println!("----------------\nThere are {live} lives and {blanks} blanks.\n----------------\n");
+                    let mut live_plural: &str = "live";
+                    if live > 1 {
+                        live_plural = "lives";
+                    }
+                    let mut blank_plural: &str = "blank";
+                    if blanks > 1 {
+                        blank_plural = "blanks";
+                    }
+                    println!("----------------\nThere are {live} {live_plural} and {blanks} {blank_plural}.\n----------------\n");
                     let shell_vec: Vec<bool> = load_shells(live, blanks);
+                    dbg!(&shell_vec);
                     //turn owner is used to switch between turns for player/dealer.
                     //true means it is the players turn, false the dealer's turn.
                     let mut turn_owner: TargetEnum = TargetEnum::Player;
@@ -168,35 +175,39 @@ fn main() {
                     let mut player_extraturn: bool;
                     let mut dealer_extraturn: bool;
 
-                    for shell in &shell_vec {
-                        let mut game_info: GameInfo = GameInfo {
-                            shell: *shell,
-                            dealer_health,
-                            player_health,
-                            turn_owner,
-                            player_stored_items,
-                            dealer_stored_items,
-                            perfect,
-                            double_or_nothing,
-                            shells_vector: (*shell_vec).to_vec(),
-                        };
+                    let mut game_info: GameInfo = GameInfo {
+                        dealer_health,
+                        player_health,
+                        turn_owner,
+                        player_inventory,
+                        dealer_stored_items,
+                        perfect,
+                        double_or_nothing,
+                        shells_vector: (*shell_vec).to_vec(),
+                    };
+
+                    'shell_iter: for _ in &shell_vec {
                         //current bullets vec holds the bullets currently loaded
                         let current_bullets_vec: Vec<bool> = shell_vec[turn - 1..].to_vec();
                         println!("{}", Style::new().bold().paint(format!("Turn {turn}\n")));
-                        println!("You have {player_health} lives remaining. The dealer has {dealer_health} lives remaining.");
-                        check_life(player_health, dealer_health);
+                        println!(
+                            "You have {0} lives remaining. The dealer has {1} lives remaining.",
+                            game_info.player_health, game_info.dealer_health
+                        );
+                        check_life(game_info.player_health, game_info.dealer_health);
                         match turn_owner {
                             TargetEnum::Player => {
                                 player_extraturn = player::turn(&mut game_info);
                                 if !player_extraturn {
-                                    turn_owner = TargetEnum::Dealer;
+                                    
+                                    break 'shell_iter;
                                 };
                             }
                             TargetEnum::Dealer => {
                                 dealer_extraturn =
                                     dealer::turn(current_bullets_vec, &mut game_info);
                                 if !dealer_extraturn {
-                                    turn_owner = TargetEnum::Player;
+                                    break 'shell_iter;
                                 };
                             }
                         }
@@ -273,7 +284,6 @@ fn remove_no_item(picked_items_vec: &mut [ItemEnum; 8], item_type: ItemEnum) {
         dbg!(picked_items_vec);
         println!("{item_type}");
         panic!("Item {item_type:?} not found in the array. ");
-
     }
 }
 
@@ -326,13 +336,13 @@ fn turn_screen_red() {
     // Execute crossterm commands to clear screen and set red background
     let mut chunk = String::new();
     play_audio("temp_gunshot_live.wav");
-    for _ in 0..9000 {
+    for _ in 0..18000 {
         chunk.push(' ');
     }
 
     execute!(
         io::stdout(),
-        Clear(ClearType::All),          // Clear the screen
+        //Clear(ClearType::All),          // Clear the screen
         SetBackgroundColor(Color::Red), // Set background color to red
         Print(chunk),                   // Print a dummy character to fill the screen with red
         ResetColor                      // Reset colors to default after printing
@@ -342,7 +352,7 @@ fn turn_screen_red() {
 
     // Flush stdout to ensure color change is immediate
     io::stdout().flush().expect("Failed to flush stdout");
-    clearscreen::clear().expect("Failed to clear screen");
+    //clearscreen::clear().expect("Failed to clear screen");
 }
 
 fn credits() {
