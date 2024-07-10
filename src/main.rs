@@ -3,10 +3,9 @@ use core::fmt;
 use crossterm::{
     execute,
     style::{Color, Print, ResetColor, SetBackgroundColor},
-    terminal::{Clear, ClearType},
 };
 use dealer::picked_to_stored;
-use dialoguer::FuzzySelect;
+use dialoguer::Select;
 use once_cell::sync::Lazy;
 use player::pick_items;
 use rand::{seq::SliceRandom, Rng};
@@ -106,7 +105,7 @@ impl fmt::Display for TargetEnum {
         write!(f, "{printable}")
     }
 }
-
+#[allow(clippy::too_many_lines)]
 fn main() {
     // atomic boolean to track if sigint was received
     let running = Arc::new(AtomicBool::new(true));
@@ -167,10 +166,9 @@ fn main() {
                     }
                     println!("----------------\nThere are {live} {live_plural} and {blanks} {blank_plural}.\n----------------\n");
                     let shell_vec: Vec<bool> = load_shells(live, blanks);
-                    dbg!(&shell_vec);
                     //turn owner is used to switch between turns for player/dealer.
                     //true means it is the players turn, false the dealer's turn.
-                    let mut turn_owner: TargetEnum = TargetEnum::Player;
+                    let turn_owner: TargetEnum = TargetEnum::Player;
                     let mut turn: usize = 1;
                     let mut player_extraturn: bool;
                     let mut dealer_extraturn: bool;
@@ -185,29 +183,48 @@ fn main() {
                         double_or_nothing,
                         shells_vector: (*shell_vec).to_vec(),
                     };
-
-                    'shell_iter: for _ in &shell_vec {
-                        //current bullets vec holds the bullets currently loaded
-                        let current_bullets_vec: Vec<bool> = shell_vec[turn - 1..].to_vec();
+                    for _ in &shell_vec {
                         println!("{}", Style::new().bold().paint(format!("Turn {turn}\n")));
                         println!(
                             "You have {0} lives remaining. The dealer has {1} lives remaining.",
                             game_info.player_health, game_info.dealer_health
                         );
                         check_life(game_info.player_health, game_info.dealer_health);
-                        match turn_owner {
+
+                        match game_info.turn_owner {
                             TargetEnum::Player => {
                                 player_extraturn = player::turn(&mut game_info);
+                                println!("{player_extraturn}");
                                 if !player_extraturn {
-                                    
-                                    break 'shell_iter;
+                                    game_info.turn_owner = TargetEnum::Dealer;
+                                    turn += 1;
+                                    println!(
+                                        "{}",
+                                        Style::new().bold().paint(format!("Turn {turn}\n"))
+                                    );
+
+                                    println!(
+                                        "You have {0} lives remaining. The dealer has {1} lives remaining.",
+                                        game_info.player_health, game_info.dealer_health
+                                    );
                                 };
                             }
+
                             TargetEnum::Dealer => {
-                                dealer_extraturn =
-                                    dealer::turn(current_bullets_vec, &mut game_info);
+                                dealer_extraturn = dealer::turn(&mut game_info);
+                                println!("{dealer_extraturn} dealer extraturn");
+
                                 if !dealer_extraturn {
-                                    break 'shell_iter;
+                                    game_info.turn_owner = TargetEnum::Player;
+                                    turn += 1;
+                                    println!(
+                                        "{}",
+                                        Style::new().bold().paint(format!("Turn {turn}\n"))
+                                    );
+                                    println!(
+                                        "You have {0} lives remaining. The dealer has {1} lives remaining.",
+                                        game_info.player_health, game_info.dealer_health
+                                    );
                                 };
                             }
                         }
@@ -277,11 +294,11 @@ fn generate_items(len: usize, double_or_nothing: bool) -> Vec<ItemEnum> {
     trimmed_vec
 }
 
-fn remove_no_item(picked_items_vec: &mut [ItemEnum; 8], item_type: ItemEnum) {
+fn remove_item(picked_items_vec: &mut [ItemEnum; 8], item_type: ItemEnum) {
     if let Some(index) = picked_items_vec.iter().position(|&x| x == item_type) {
         picked_items_vec[index] = ItemEnum::Nothing;
+
     } else {
-        dbg!(picked_items_vec);
         println!("{item_type}");
         panic!("Item {item_type:?} not found in the array. ");
     }
@@ -357,7 +374,7 @@ fn turn_screen_red() {
 
 fn credits() {
     clearscreen::clear().expect("Failed to clear screen");
-    let contents = fs::read_to_string("credits.txt")
+    let contents = fs::read_to_string("txt_files/credits.txt")
         .expect("The help.txt file is missing or in the wrong area!");
     println!("{contents}");
     println!("Press enter to continue...");
@@ -368,8 +385,8 @@ fn credits() {
 }
 fn help() {
     clearscreen::clear().expect("Failed to clear screen");
-    let contents =
-        fs::read_to_string("help.txt").expect("The help.txt file is missing or in the wrong area!");
+    let contents = fs::read_to_string("txt_files/help.txt")
+        .expect("The help.txt file is missing or in the wrong area!");
     println!("{contents}");
     println!("Press enter to continue...");
     io::stdout().flush().unwrap();
@@ -381,7 +398,7 @@ fn help() {
 fn play_screen() -> Selection {
     clearscreen::clear().expect("Failed to clear screen");
     let options_vec: [Selection; 3] = [Selection::Play, Selection::Help, Selection::Credits];
-    let selection = FuzzySelect::new()
+    let selection = Select::new()
         .with_prompt("What do you choose?")
         .items(&options_vec)
         .interact()
