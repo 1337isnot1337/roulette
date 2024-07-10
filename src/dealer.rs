@@ -138,7 +138,6 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
     let dealer_minor_info = dealer_item_logic(game_info, damage, shell_knowledge, extra_turn_var);
 
     let choice: bool = if game_info.perfect | dealer_minor_info.shell_knowledge {
-        println!("perf");
         game_info.shells_vector[0]
     } else {
         //logic for the dealer's choice
