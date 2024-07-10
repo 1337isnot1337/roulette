@@ -155,10 +155,6 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
         //if there are more lives than blanks, choose to shoot player. Vice versa and such.
         lives >= blanks
     };
-    println!(
-        "choice is {choice} and shell is {}",
-        game_info.shells_vector[0]
-    );
     let to_be_shot = if choice {
         TargetEnum::Player
     } else {

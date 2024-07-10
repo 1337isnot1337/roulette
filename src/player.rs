@@ -215,8 +215,10 @@ fn resolve_player_choice(
 
 pub fn pick_items(player_inventory: &mut [ItemEnum; 8], doub_or_noth: bool) {
     let items_vec = &mut generate_items(8, doub_or_noth);
-    for _ in 0..4 {
-        println!("You got {}, where are you going to place it?", items_vec[0]);
+    println!("Take your items.");
+    for item_num in 0..4 {
+        let item_updated = item_num + 1;
+        println!("Item #{item_updated} is {}. Place it in your inventory", items_vec[0]);
         let selection = Select::new().items(player_inventory).interact().unwrap();
         player_inventory[selection] = items_vec[0]; // replace item in player_inventory with items_vec[i]
         items_vec.remove(0);

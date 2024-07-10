@@ -156,15 +156,17 @@ fn main() {
                             break;
                         }
                     }
+                    let mut is_or_are: &str = "is";
                     let mut live_plural: &str = "live";
                     if live > 1 {
                         live_plural = "lives";
+                        is_or_are = "are";
                     }
                     let mut blank_plural: &str = "blank";
                     if blanks > 1 {
                         blank_plural = "blanks";
                     }
-                    println!("----------------\nThere are {live} {live_plural} and {blanks} {blank_plural}.\n----------------\n");
+                    println!("----------------\nThere {is_or_are} {live} {live_plural} and {blanks} {blank_plural} loaded into the shotgun.\n----------------\n");
                     let shell_vec: Vec<bool> = load_shells(live, blanks);
                     //turn owner is used to switch between turns for player/dealer.
                     //true means it is the players turn, false the dealer's turn.
@@ -186,7 +188,7 @@ fn main() {
                     while !game_info.shells_vector.is_empty() {
                         println!("{}", Style::new().bold().paint(format!("Turn {turn}\n")));
                         println!(
-                            "You have {0} lives remaining. The dealer has {1} lives remaining.",
+                            "You have {0} hearts remaining. The dealer has {1} hearts remaining.",
                             game_info.player_health, game_info.dealer_health
                         );
                         check_life(game_info.player_health, game_info.dealer_health);
@@ -194,17 +196,12 @@ fn main() {
                         match game_info.turn_owner {
                             TargetEnum::Player => {
                                 player_extraturn = player::turn(&mut game_info);
-                                println!("{player_extraturn}");
+
                                 if !player_extraturn {
                                     game_info.turn_owner = TargetEnum::Dealer;
-                                    turn += 1;
-                                    println!(
-                                        "{}",
-                                        Style::new().bold().paint(format!("Turn {turn}\n"))
-                                    );
 
                                     println!(
-                                        "You have {0} lives remaining. The dealer has {1} lives remaining.",
+                                        "You have {0} hearts remaining. The dealer has {1} hearts remaining.",
                                         game_info.player_health, game_info.dealer_health
                                     );
                                 };
@@ -212,17 +209,12 @@ fn main() {
 
                             TargetEnum::Dealer => {
                                 dealer_extraturn = dealer::turn(&mut game_info);
-                                println!("{dealer_extraturn} dealer extraturn");
 
                                 if !dealer_extraturn {
                                     game_info.turn_owner = TargetEnum::Player;
-                                    turn += 1;
+
                                     println!(
-                                        "{}",
-                                        Style::new().bold().paint(format!("Turn {turn}\n"))
-                                    );
-                                    println!(
-                                        "You have {0} lives remaining. The dealer has {1} lives remaining.",
+                                        "You have {0} hearts remaining. The dealer has {1} hearts remaining.",
                                         game_info.player_health, game_info.dealer_health
                                     );
                                 };
@@ -232,6 +224,11 @@ fn main() {
 
                         thread::sleep(Duration::from_secs(1));
                     }
+                    println!();
+                    println!(
+                        "All shells have been used, loading new shells and generating new items."
+                    );
+                    println!();
                 }
             }
             Selection::Credits => credits(),
@@ -346,7 +343,6 @@ fn play_audio(path: &'static str) {
 
         let source: Decoder<BufReader<File>> = Decoder::new(file).unwrap();
         AUDIO_HANDLE.play_raw(source.convert_samples()).unwrap();
-        std::thread::sleep(std::time::Duration::from_secs(5));
     });
 }
 
@@ -400,11 +396,8 @@ fn help() {
 fn play_screen() -> Selection {
     clearscreen::clear().expect("Failed to clear screen");
     let options_vec: [Selection; 3] = [Selection::Play, Selection::Help, Selection::Credits];
-    let selection = Select::new()
-        .with_prompt("What do you choose?")
-        .items(&options_vec)
-        .interact()
-        .unwrap();
+    println!("Welcome to the game. \nWhat do you wish to do?");
+    let selection = Select::new().items(&options_vec).interact().unwrap();
 
     options_vec[selection]
 }
