@@ -133,11 +133,12 @@ fn main() {
         }
 
         clearscreen::clear().expect("Failed to clear screen");
-        let (player_health, dealer_health) = (3i8, 3i8);
+        let (mut player_health, mut dealer_health) = (3i8, 3i8);
 
         match play_screen() {
             Selection::Play => {
                 loop {
+
                     let (mut dealer_stored_items, mut player_inventory) =
                         ([ItemEnum::Nothing; 8], [ItemEnum::Nothing; 8]);
 
@@ -230,6 +231,8 @@ fn main() {
                         "All shells have been used, loading new shells and generating new items."
                     );
                     println!();
+                    dealer_health = game_info.dealer_health;
+                    player_health = game_info.player_health;
                 }
             }
             Selection::Credits => credits(),
