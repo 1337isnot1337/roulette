@@ -83,7 +83,7 @@ fn dealer_item_logic(
             continue 'dealer_item_logic;
         }
         if game_info.dealer_stored_items.contains(&ItemEnum::Beers)
-            && !dealer_minor_info.shell_knowledge & coinflip
+            && !dealer_minor_info.shell_knowledge && coinflip && {game_info.shells_vector.len() > 2}
         {
             item_use(ItemEnum::Beers, game_info, &mut damage);
             play_audio("dealer_use_beer.ogg");

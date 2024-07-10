@@ -134,12 +134,18 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
             }
             ItemEnum::Beers => {
                 play_audio("player_use_beer.ogg");
-                if game_info.shells_vector[0] {
-                    println!("You give the shotgun a pump. A live round drops out.");
+                if game_info.shells_vector.len() == 1 {
+                    println!("You take the beer, but since there's only one round left, you're unable to rack the gun.");
                 } else {
-                    println!("You give the shotgun a pump. A blank round drops out.");
-                };
-                game_info.shells_vector.remove(0);
+                    if game_info.shells_vector[0] {
+                        println!("You give the shotgun a pump. A live round drops out.");
+                    } else {
+                        println!("You give the shotgun a pump. A blank round drops out.");
+                    };
+                    game_info.shells_vector.remove(0);
+                }
+                
+                
                 remove_item(&mut game_info.player_inventory, item_type);
                 continue 'item_selection_loop;
             }

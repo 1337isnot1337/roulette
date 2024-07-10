@@ -134,6 +134,7 @@ fn main() {
 
         clearscreen::clear().expect("Failed to clear screen");
         let (player_health, dealer_health) = (3i8, 3i8);
+
         match play_screen() {
             Selection::Play => {
                 loop {
