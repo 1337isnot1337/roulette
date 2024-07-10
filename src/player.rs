@@ -71,7 +71,7 @@ fn double_or_nothing_items(item_type: ItemEnum, game_info: &mut GameInfo) {
             todo!("give the player the item");
             
         }
-        _ => panic!("nooo"),
+        _ => panic!("nooo (w error message chat?!?!??!)"),
     }
     
 }
@@ -175,7 +175,6 @@ fn resolve_player_choice(
     if cuffed {
         extraturn = true;
     }
-
     match choice {
         TargetEnum::Player => {
             println!("You point the gun at your face.");
@@ -183,14 +182,14 @@ fn resolve_player_choice(
             if game_info.shells_vector[0] {
                 turn_screen_red();
                 println!("You shot yourself.");
-
-                game_info.player_health -= 1;
+                
+                game_info.player_health -= damage;
             } else {
                 play_audio("temp_gunshot_blank.wav");
                 italics("click");
                 thread::sleep(Duration::from_secs(1));
                 println!("Extra turn for you.");
-                game_info.shells_vector.remove(0);
+                
                 extraturn = true;
             }
         }
@@ -201,17 +200,16 @@ fn resolve_player_choice(
                 turn_screen_red();
 
                 println!("You shot the dealer.");
-                println!("{damage} damage");
-                println!("{0} deal he", game_info.dealer_health);
+                
                 game_info.dealer_health -= damage;
-                println!("{0}deal he", game_info.dealer_health);
+                
             } else {
                 play_audio("temp_gunshot_blank.wav");
                 italics("click");
             }
         }
     }
-    println!("{extraturn}");
+    game_info.shells_vector.remove(0);
     extraturn
 }
 

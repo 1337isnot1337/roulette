@@ -183,7 +183,7 @@ fn main() {
                         double_or_nothing,
                         shells_vector: (*shell_vec).to_vec(),
                     };
-                    for _ in &shell_vec {
+                    while !game_info.shells_vector.is_empty() {
                         println!("{}", Style::new().bold().paint(format!("Turn {turn}\n")));
                         println!(
                             "You have {0} lives remaining. The dealer has {1} lives remaining.",
@@ -288,16 +288,13 @@ fn generate_items(len: usize, double_or_nothing: bool) -> Vec<ItemEnum> {
         items_vec.as_mut_slice().shuffle(&mut rng);
     }
 
-    //yes ik its overkill but this is my code not urs
-    let trimmed_vec: Vec<ItemEnum> = items_vec.iter().take(len).copied().collect::<Vec<_>>();
-
-    trimmed_vec
+    //yes ik its overkill and stupid asf but this is my code not urs
+    items_vec.iter().take(len).copied().collect::<Vec<_>>()
 }
 
 fn remove_item(picked_items_vec: &mut [ItemEnum; 8], item_type: ItemEnum) {
     if let Some(index) = picked_items_vec.iter().position(|&x| x == item_type) {
         picked_items_vec[index] = ItemEnum::Nothing;
-
     } else {
         println!("{item_type}");
         panic!("Item {item_type:?} not found in the array. ");
@@ -317,8 +314,12 @@ fn load_shells(live: u8, blanks: u8) -> Vec<bool> {
         play_audio("load_single_shell.ogg");
         thread::sleep(Duration::from_millis(500));
     }
-    let mut rng = rand::thread_rng();
-    shells.as_mut_slice().shuffle(&mut rng);
+    //yes ik its overkill and stupid asf but this is my code not urs (part 2)
+    for _ in 0..10 {
+        let mut rng = rand::thread_rng();
+        shells.as_mut_slice().shuffle(&mut rng);
+    }
+
     shells
 }
 
@@ -356,7 +357,7 @@ fn turn_screen_red() {
     for _ in 0..18000 {
         chunk.push(' ');
     }
-
+    println!();
     execute!(
         io::stdout(),
         //Clear(ClearType::All),          // Clear the screen
@@ -365,7 +366,8 @@ fn turn_screen_red() {
         ResetColor                      // Reset colors to default after printing
     )
     .expect("Failed to execute crossterm commands");
-    thread::sleep(Duration::from_millis(500));
+    println!();
+    thread::sleep(Duration::from_millis(700));
 
     // Flush stdout to ensure color change is immediate
     io::stdout().flush().expect("Failed to flush stdout");

@@ -1,7 +1,9 @@
 use rand::Rng;
 use std::{fmt, thread, time::Duration};
 
-use crate::{check_life, italics, play_audio, remove_item, turn_screen_red, GameInfo, ItemEnum};
+use crate::{
+    check_life, italics, play_audio, remove_item, turn_screen_red, GameInfo, ItemEnum, TargetEnum,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ExtraTurnVars {
@@ -25,7 +27,7 @@ struct DealerMinorInfo {
 
 fn dealer_item_logic(
     game_info: &mut GameInfo,
-    mut damage: u8,
+    mut damage: i8,
     shell_knowledge: bool,
     extra_turn_var: ExtraTurnVars,
 ) -> DealerMinorInfo {
@@ -129,7 +131,7 @@ fn dealer_item_logic(
 }
 
 pub fn turn(game_info: &mut GameInfo) -> bool {
-    let damage: u8 = 1;
+    let damage: i8 = 1;
     // future goal: add logic for having dealer pick certain items
     let shell_knowledge = false;
     let extra_turn_var = ExtraTurnVars::None;
@@ -157,46 +159,55 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
         "choice is {choice} and shell is {}",
         game_info.shells_vector[0]
     );
+    let to_be_shot = if choice {
+        TargetEnum::Player
+    } else {
+        TargetEnum::Dealer
+    };
     //true means dealer shoots you, false means dealer shoots itself
     let mut extraturn = false;
     if dealer_minor_info.extra_turn_var == ExtraTurnVars::Handcuffed {
         extraturn = true;
     }
-
-    if choice {
-        println!("The dealer points the gun at your face.");
-        thread::sleep(Duration::from_secs(1));
-        if game_info.shells_vector[0] {
-            turn_screen_red();
-            println!("Dealer shot you.");
-            game_info.player_health -= 1;
-        } else {
-            play_audio("temp_gunshot_blank.wav");
-            italics("click");
+    
+    match to_be_shot {
+        TargetEnum::Player => {
+            println!("The dealer points the gun at your face.");
+            thread::sleep(Duration::from_secs(1));
+            if game_info.shells_vector[0] {
+                turn_screen_red();
+                println!("Dealer shot you.");
+                game_info.player_health -= damage;
+            } else {
+                play_audio("temp_gunshot_blank.wav");
+                italics("click");
+            }
         }
-    } else {
-        println!("The dealer points the gun at its face.");
-        thread::sleep(Duration::from_secs(1));
-        if game_info.shells_vector[0] {
-            turn_screen_red();
-            println!("Dealer shot themselves.");
-            game_info.dealer_health -= 1;
-        } else {
-            play_audio("temp_gunshot_blank.wav");
-            italics("click");
-            println!("Extra turn for dealer.");
-            if dealer_minor_info.extra_turn_var != ExtraTurnVars::Handcuffed {
-                extraturn = true;
+        TargetEnum::Dealer => {
+            println!("The dealer points the gun at its face.");
+            thread::sleep(Duration::from_secs(1));
+            if game_info.shells_vector[0] {
+                turn_screen_red();
+                println!("Dealer shot themselves.");
+                game_info.dealer_health -= damage;
+            } else {
+                play_audio("temp_gunshot_blank.wav");
+                italics("click");
+                println!("Extra turn for dealer.");
+                if dealer_minor_info.extra_turn_var != ExtraTurnVars::Handcuffed {
+                    extraturn = true;
+                }
             }
         }
     }
-
+    
+    game_info.shells_vector.remove(0);
     thread::sleep(Duration::from_secs(1));
     check_life(game_info.player_health, game_info.dealer_health);
     extraturn
 }
 
-pub fn item_use(item_type: ItemEnum, game_info: &mut GameInfo, damage: &mut u8) -> bool {
+pub fn item_use(item_type: ItemEnum, game_info: &mut GameInfo, damage: &mut i8) -> bool {
     let mut knowledge_of_shell = false;
     match item_type {
         ItemEnum::Cigs => {
@@ -266,6 +277,7 @@ pub fn item_use(item_type: ItemEnum, game_info: &mut GameInfo, damage: &mut u8) 
             remove_item(&mut game_info.dealer_stored_items, item_type);
         }
     }
+    thread::sleep(Duration::from_millis(500));
     knowledge_of_shell
 }
 pub fn picked_to_stored(
