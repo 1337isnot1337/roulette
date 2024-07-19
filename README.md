@@ -29,3 +29,5 @@ Your shaky hands are in control of the gun. Will you make it out alive?
 Bonus Features:
 run with the --perfect flag and the dealer will always know the current shell and play accordingly
 run with the --double flag to try out the (not finished) double or nothing beta with some of the items!
+
+The creator and distributer of the code shall not be held responsible for any damage or issues caused by it. 
