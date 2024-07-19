@@ -1,1 +1,6 @@
-All (I think) code made by 1337isnot1337 (or whatever my current github name is). This code is protected by the GPL 3.0 License. It is open source of course; all code visible on my GitHub. If you have any problems with the code, or questions, fill out an issue on the GitHub. If you wish to contribute, send a pull request. Thank you. :3
+All (I think) code made by 1337isnot1337 (or whatever my current github name is). 
+This code is protected by the GPL 3.0 License. It is open source of course; all code visible on my GitHub. 
+If you have any problems with the code, or questions, fill out an issue on the GitHub. 
+If you wish to contribute, send a pull request. Thank you. :3
+
+
