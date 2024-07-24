@@ -291,10 +291,10 @@ fn item_use(
             message_top!("The dealer takes the expired medicine.");
             let coinflip: bool = rand::thread_rng().gen();
             if coinflip {
-                game_info.dealer_health += 1;
+                game_info.dealer_health += 2;
                 message_top!("The dealer smiles.");
             } else {
-                game_info.dealer_health -= 2;
+                game_info.dealer_health -= 1;
                 message_top!("The dealer chokes and falls over.");
             }
             remove_item(&mut game_info.dealer_stored_items, item_type);

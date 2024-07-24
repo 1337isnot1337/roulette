@@ -13,16 +13,52 @@ pub fn turn(game_info: &mut GameInfo) -> (bool, bool) {
     let mut cuffed = false;
     let mut damage: i8 = 1;
     message_top!("Select items to use");
+    (empty_due_to_beer, cuffed, damage) =
+        match_item(false, game_info, empty_due_to_beer, damage, cuffed, None);
+    let mut extraturn = false;
+    if !empty_due_to_beer {
+        message_stats_func(game_info);
+        let targets: [TargetEnum; 2] = [TargetEnum::Player, TargetEnum::Dealer];
+        let selection = dialogue(&targets, "Who to shoot?");
+        message_stats_func(game_info);
+
+        let choice = targets[selection];
+        extraturn = resolve_player_choice(choice, damage, game_info, cuffed);
+
+        thread::sleep(Duration::from_secs(1));
+        check_life(game_info);
+        message_stats_func(game_info);
+    }
+
+    (extraturn, empty_due_to_beer)
+}
+
+fn match_item(
+    mut adren_pick: bool,
+    game_info: &mut GameInfo,
+    mut empty_due_to_beer: bool,
+    mut damage: i8,
+    mut cuffed: bool,
+    adren_item: Option<ItemEnum>,
+) -> (bool, bool, i8) {
     'item_selection_loop: loop {
-        if empty_due_to_beer {
-            message_top!("init break recieved");
-            break 'item_selection_loop;
+        message_stats_func(game_info);
+        let item_type: ItemEnum = if adren_pick {
+            adren_item.unwrap()
+        } else {
+            if empty_due_to_beer {
+                break 'item_selection_loop;
+            }
+            let selection = dialogue(&game_info.player_inventory, "Items list:");
+            game_info.player_inventory[selection]
+        };
+        if !adren_pick {
+            remove_item(&mut game_info.player_inventory, item_type);
+        }
+        if adren_pick {
+            adren_pick = false;
         }
         message_stats_func(game_info);
-        let selection = dialogue(&game_info.player_inventory, "Items list:");
-
-        let item_type = game_info.player_inventory[selection];
-        remove_item(&mut game_info.player_inventory, item_type);
         match item_type {
             ItemEnum::Cigs => {
                 play_audio("player_use_cigarettes.ogg");
@@ -82,30 +118,23 @@ pub fn turn(game_info: &mut GameInfo) -> (bool, bool) {
                 continue 'item_selection_loop;
             }
             ItemEnum::Nothing => {}
-            _ => double_or_nothing_items(item_type, game_info),
+            _ => {
+                (empty_due_to_beer, cuffed, damage) = double_or_nothing_items(item_type, game_info, empty_due_to_beer, damage, cuffed);
+                continue 'item_selection_loop;
+            }
         }
         break;
     }
-    let mut extraturn = false;
-    if !empty_due_to_beer {
-        message_stats_func(game_info);
-        let targets: [TargetEnum; 2] = [TargetEnum::Player, TargetEnum::Dealer];
-        let selection = dialogue(&targets, "Who to shoot?");
-        message_stats_func(game_info);
-
-        let choice = targets[selection];
-        extraturn = resolve_player_choice(choice, damage, game_info, cuffed);
-        
-        thread::sleep(Duration::from_secs(1));
-        check_life(game_info);
-        message_stats_func(game_info);
-    }
-    
-
-    (extraturn, empty_due_to_beer)
+    (empty_due_to_beer, cuffed, damage)
 }
 
-fn double_or_nothing_items(item_type: ItemEnum, game_info: &mut GameInfo) {
+fn double_or_nothing_items(
+    item_type: ItemEnum,
+    game_info: &mut GameInfo,
+    mut empty_due_to_beer: bool,
+    mut damage: i8,
+    mut cuffed: bool,
+) -> (bool, bool, i8) {
     message_stats_func(game_info);
     match item_type {
         ItemEnum::Adren => {
@@ -118,10 +147,17 @@ fn double_or_nothing_items(item_type: ItemEnum, game_info: &mut GameInfo) {
             if stolen_item == ItemEnum::Adren {
                 message_top!("You can't grab the adrenaline.");
             } else {
-                message_top!("You grab the {item_type}, and use it.");
+                message_top!("You grab the {stolen_item}, and use it.");
 
                 remove_item(&mut game_info.dealer_stored_items, stolen_item);
-                todo!("you need to code the usage part bozo");
+                (empty_due_to_beer, cuffed, damage) = match_item(
+                    true,
+                    game_info,
+                    empty_due_to_beer,
+                    damage,
+                    cuffed,
+                    Some(stolen_item),
+                );
             }
         }
         ItemEnum::BurnPho => {
@@ -158,18 +194,16 @@ fn double_or_nothing_items(item_type: ItemEnum, game_info: &mut GameInfo) {
             message_top!("You takes the expired medicine.");
             let coinflip: bool = rand::thread_rng().gen();
             if coinflip {
-                game_info.player_health += 1;
+                game_info.player_health += 2;
                 message_top!("You feel energy coursing through you.");
             } else {
-                game_info.player_health -= 2;
+                game_info.player_health -= 1;
                 message_top!("You choke and fall over.");
             }
-
-            todo!("give the player the item");
         }
         _ => unreachable!(),
     }
-    remove_item(&mut game_info.player_inventory, item_type);
+    (empty_due_to_beer, cuffed, damage)
 }
 
 fn resolve_player_choice(

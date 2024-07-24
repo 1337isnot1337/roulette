@@ -12,10 +12,16 @@ use player::pick_items;
 use rand::{seq::SliceRandom, Rng};
 use rodio::{Decoder, OutputStream, OutputStreamHandle, Source};
 use std::{
-    env, fs::File, io::{self, BufReader, Write}, mem, process, sync::{
+    env,
+    fs::File,
+    io::{self, BufReader, Write},
+    mem, process,
+    sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
-    }, thread, time::Duration
+    },
+    thread,
+    time::Duration,
 };
 
 mod dealer;
@@ -85,6 +91,7 @@ struct GameInfo {
     dealer_stored_items: [ItemEnum; 8],
     perfect: bool,
     double_or_nothing: bool,
+    debug: bool,
     shells_vector: Vec<bool>,
     current_turn: i32,
 }
@@ -126,16 +133,34 @@ fn main() {
 }
 
 fn gameplay() {
-    
-    let args: Vec<String> = env::args().collect();
+    let args: Vec<String> = env::args().collect::<Vec<String>>()[1..].to_vec();
 
     let dealer_health: i8 = 3;
     let player_health: i8 = 3;
     let turn_owner: TargetEnum = TargetEnum::Player;
     let player_inventory: [ItemEnum; 8] = [ItemEnum::Nothing; 8];
     let dealer_stored_items: [ItemEnum; 8] = [ItemEnum::Nothing; 8];
-    let perfect: bool = args.contains(&"--perfect".to_string());
-    let double_or_nothing: bool = args.contains(&"--double".to_string());
+    let mut perfect: bool = false;
+    let mut double_or_nothing: bool = false;
+    let mut debug: bool = false;
+
+    let mut invalid_args = Vec::new();
+    for arg in args {
+        match arg.as_str() {
+            "--perfect" => perfect = true,
+            "--double" => double_or_nothing = true,
+            "--debug" => debug = true,
+            _ => invalid_args.push(arg),
+        }
+    }
+    if !invalid_args.is_empty() {
+        let mut error_string: String = "The following args were not recognized: ".to_owned();
+        for arg in invalid_args {
+            error_string.push_str(&format!("{}, ", &arg));
+        }
+        panic!("{error_string}");
+    }
+
     let shells_vector: Vec<bool> = vec![];
     let current_turn: i32 = 1;
 
@@ -147,6 +172,7 @@ fn gameplay() {
         dealer_stored_items,
         perfect,
         double_or_nothing,
+        debug,
         shells_vector,
         current_turn,
     };
@@ -190,7 +216,6 @@ fn play(game_info: &mut GameInfo) {
             if (lives + blanks) > 2 && ((lives - blanks).abs() < 3) {
                 break;
             }
-            
         }
 
         let mut live_plural: &str = "live";
@@ -209,7 +234,7 @@ fn play(game_info: &mut GameInfo) {
     game_info.current_turn = 1;
     let mut player_extraturn: bool;
     let mut dealer_extraturn: bool;
-    let mut empty_due_to_beer = false;
+    let mut empty_due_to_beer: bool;
     while !game_info.shells_vector.is_empty() {
         check_life(game_info);
 
@@ -217,7 +242,9 @@ fn play(game_info: &mut GameInfo) {
             TargetEnum::Player => {
                 (player_extraturn, empty_due_to_beer) = player::turn(game_info);
                 if empty_due_to_beer {
-                    message_top!("All shells have been used, loading new shells and generating new items.");
+                    message_top!(
+                        "All shells have been used, loading new shells and generating new items."
+                    );
                     play(game_info);
                 }
                 if !player_extraturn {
@@ -230,7 +257,6 @@ fn play(game_info: &mut GameInfo) {
 
                 if !dealer_extraturn {
                     game_info.turn_owner = TargetEnum::Player;
-
                 };
             }
         }
@@ -301,7 +327,7 @@ fn remove_item(picked_items_vec: &mut [ItemEnum; 8], item_type: ItemEnum) {
         picked_items_vec[index] = ItemEnum::Nothing;
     } else {
         message_top!("{item_type}");
-        panic!("Item {item_type:?} not found in the array. ");
+        panic!("Item {item_type:?} not found in the array. The given vector was {picked_items_vec:?}");
     }
 }
 
@@ -356,7 +382,9 @@ fn play_audio(path: &'static str) {
     let _handle: thread::JoinHandle<()> = thread::spawn(move || {
         let file: BufReader<File> = BufReader::new(match File::open(&path) {
             Ok(t) => t,
-            Err(e) => panic!("{e} and the bad file is {path}"),
+            Err(e) => {
+                panic!("There was an error in audio playing, {e}. The relevent file is at {path}")
+            }
         });
 
         let source: Decoder<BufReader<File>> = Decoder::new(file).unwrap();
@@ -392,7 +420,6 @@ fn help() {
     message_top!("\n\nSelect continue to continue...");
     dialogue(&[&"Continue"], "Pick a choice:");
     message_top!("Continuing...");
-    
 }
 
 fn play_screen() -> Selection {
@@ -417,5 +444,3 @@ fn cleanup() {
     clearscreen::clear().expect("Failed to clear screen");
     process::exit(0);
 }
-
-

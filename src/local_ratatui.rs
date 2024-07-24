@@ -160,23 +160,29 @@ pub fn message_stats_func(game_info: &mut GameInfo) {
     };
 
     let double_or_nothing = if game_info.double_or_nothing {
-        "Double or Nothing is enabled!"
+        "\nDouble or Nothing is enabled!"
     } else {
         ""
     };
     let perfect = if game_info.perfect {
-        "Perfect Dealer is enabled!"
+        "\nPerfect Dealer is enabled!"
+    } else {
+        ""
+    };
+    let debug_info = if game_info.debug {
+        &format!("\n!!!DEBUG MODE ENABLED!!!\nWill print extra information\nShells vec: {:?}", game_info.shells_vector)
     } else {
         ""
     };
     STAT_MESSAGES_VEC.try_lock().unwrap().push(format!(
-        "Turn {}. {}'s turn. \n\nDealer Health: {} \nPlayer Health: {} \n{}\n{}",
+        "Turn {}. {}'s turn. \n\nDealer Health: {} \nPlayer Health: {}{}{}{}",
         game_info.current_turn,
         turn_owner,
         game_info.dealer_health,
         game_info.player_health,
         double_or_nothing,
         perfect,
+        debug_info,
     ));
     let mut dealer_inventory = String::new();
     let mut player_inventory = String::new();
