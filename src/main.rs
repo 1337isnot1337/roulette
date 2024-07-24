@@ -12,16 +12,10 @@ use player::pick_items;
 use rand::{seq::SliceRandom, Rng};
 use rodio::{Decoder, OutputStream, OutputStreamHandle, Source};
 use std::{
-    env,
-    fs::File,
-    io::{self, BufReader, Write},
-    mem, process,
-    sync::{
+    env, fs::File, io::{self, BufReader, Write}, mem, process, sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
-    },
-    thread,
-    time::Duration,
+    }, thread, time::Duration
 };
 
 mod dealer;
@@ -188,26 +182,27 @@ fn play(game_info: &mut GameInfo) {
         pick_items(game_info);
 
         game_info.dealer_stored_items = picked_to_stored(generate_items(4, game_info), game_info);
-        let mut live: u8;
-        let mut blanks: u8;
+        let mut lives: i8;
+        let mut blanks: i8;
         loop {
-            live = rand::thread_rng().gen_range(1..=4);
+            lives = rand::thread_rng().gen_range(1..=4);
             blanks = rand::thread_rng().gen_range(1..=4);
-            if (live + blanks) > 2 {
+            if (lives + blanks) > 2 && ((lives - blanks).abs() < 3) {
                 break;
             }
+            
         }
 
         let mut live_plural: &str = "live";
-        if live > 1 {
+        if lives > 1 {
             live_plural = "lives";
         }
         let mut blank_plural: &str = "shell";
         if blanks > 1 {
             blank_plural = "shells";
         }
-        message_top!("----------------\n {live} {live_plural} and {blanks} blank {blank_plural} are loaded into the shotgun.\n----------------\n");
-        game_info.shells_vector = load_shells(1, 1);
+        message_top!("----------------\n {lives} {live_plural} and {blanks} blank {blank_plural} are loaded into the shotgun.\n----------------\n");
+        game_info.shells_vector = load_shells(lives, blanks);
     }
 
     game_info.turn_owner = TargetEnum::Player;
@@ -311,14 +306,14 @@ fn remove_item(picked_items_vec: &mut [ItemEnum; 8], item_type: ItemEnum) {
 }
 
 //loading the shotgun shells
-fn load_shells(live: u8, blanks: u8) -> Vec<bool> {
+fn load_shells(lives: i8, blanks: i8) -> Vec<bool> {
     let mut shells: Vec<bool> = Vec::new();
     for _i in 0..blanks {
         shells.push(false);
         play_audio("load_single_shell.ogg");
         thread::sleep(Duration::from_millis(300));
     }
-    for _i in 0..live {
+    for _i in 0..lives {
         shells.push(true);
         play_audio("load_single_shell.ogg");
         thread::sleep(Duration::from_millis(300));

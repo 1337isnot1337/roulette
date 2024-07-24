@@ -1,8 +1,6 @@
 use std::{
     io::{self, stdout},
     sync::Mutex,
-    thread,
-    time::Duration,
 };
 
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
@@ -59,7 +57,6 @@ fn ui(
     player_message: &mut [String],
     dealer_message: &mut [String],
 ) {
-
     let chunks: std::rc::Rc<[ratatui::prelude::Rect]> = Layout::vertical(
         [
             Constraint::Percentage(50),
@@ -91,7 +88,6 @@ fn ui(
 
     //we need to display only {height} lines, because that is how much the terminal can display.
     let height: usize = chunks[0].height as usize - 1;
-    let width: usize = chunks[0].width as usize - 2;
 
     //this gathers all the text into a vec of strings
     let string_array: Vec<&str> = top_message.split('\n').collect();
@@ -105,7 +101,6 @@ fn ui(
         final_text.push_str(item);
         final_text.push('\n');
     }
-    
 
     let top_messages = Paragraph::new(final_text)
         .block(Block::bordered())
@@ -121,7 +116,6 @@ fn ui(
     let dealer_inv = List::new(dealer_message.to_owned())
         .block(Block::bordered().title("Dealer Inventory:"))
         .style(Style::new().white().on_black());
-    
 
     f.render_widget(top_messages, chunks[0]);
 
@@ -136,10 +130,10 @@ pub fn message_top_func(given_message: &str) {
         .unwrap()
         .push_str(given_message);
     TOP_MESSAGES_STRING.try_lock().unwrap().push('\n');
-    TERMINAL
-        .try_lock()
-        .unwrap()
-        .clear().unwrap();
+    TERMINAL.try_lock().unwrap().autoresize().unwrap();
+    //this is the problematic part
+
+    TERMINAL.try_lock().unwrap().clear().unwrap();
     TERMINAL
         .try_lock()
         .unwrap()
@@ -154,7 +148,6 @@ pub fn message_top_func(given_message: &str) {
         })
         .unwrap();
 }
-
 
 pub fn message_stats_func(game_info: &mut GameInfo) {
     STAT_MESSAGES_VEC.try_lock().unwrap().clear();
