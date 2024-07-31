@@ -2,7 +2,7 @@ use crate::local_ratatui::{dialogue, message_stats_func};
 use crate::message_top_func;
 use crate::{
     check_life, generate_items, message_top, play_audio, remove_item, turn_screen_red, GameInfo,
-    ItemEnum, TargetEnum,
+    ItemEnum, PlayerDealer,
 };
 use rand::Rng;
 use std::{thread, time::Duration};
@@ -18,7 +18,7 @@ pub fn turn(game_info: &mut GameInfo) -> (bool, bool) {
     let mut extraturn = false;
     if !empty_due_to_beer {
         message_stats_func(game_info);
-        let targets: [TargetEnum; 2] = [TargetEnum::Player, TargetEnum::Dealer];
+        let targets: [PlayerDealer; 2] = [PlayerDealer::Player, PlayerDealer::Dealer];
         let selection = dialogue(&targets, "Who to shoot?");
         message_stats_func(game_info);
 
@@ -82,7 +82,7 @@ fn match_item(
             }
             ItemEnum::MagGlass => {
                 play_audio("player_use_magnifier.ogg");
-                if game_info.shells_vector[0] {
+                if game_info.shells_vector[game_info.shell_index] {
                     message_top!(
                         "Upon closer inspection, you realize that there's a live round loaded."
                     );
@@ -105,21 +105,27 @@ fn match_item(
             }
             ItemEnum::Beers => {
                 play_audio("player_use_beer.ogg");
-                if game_info.shells_vector.len() == 1 {
+                if game_info.shells_vector.len() == game_info.shell_index {
                     empty_due_to_beer = true;
                 }
-                if game_info.shells_vector[0] {
+                if game_info.shells_vector[game_info.shell_index] {
                     message_top!("You give the shotgun a pump. A live round drops out.");
                 } else {
                     message_top!("You give the shotgun a pump. A blank round drops out.");
                 };
-                game_info.shells_vector.remove(0);
+                game_info.shell_index += 1;
 
                 continue 'item_selection_loop;
             }
             ItemEnum::Nothing => {}
             _ => {
-                (empty_due_to_beer, cuffed, damage) = double_or_nothing_items(item_type, game_info, empty_due_to_beer, damage, cuffed);
+                (empty_due_to_beer, cuffed, damage) = double_or_nothing_items(
+                    item_type,
+                    game_info,
+                    empty_due_to_beer,
+                    damage,
+                    cuffed,
+                );
                 continue 'item_selection_loop;
             }
         }
@@ -162,15 +168,16 @@ fn double_or_nothing_items(
         }
         ItemEnum::BurnPho => {
             play_audio("player_use_burner_phone.ogg");
-            let shell_number: usize =
-                rand::thread_rng().gen_range(0..{ game_info.shells_vector.len() });
-            let shell_reveal = if game_info.shells_vector[shell_number] {
+            let abs_shell_number: usize = rand::thread_rng()
+                .gen_range(game_info.shell_index..game_info.shells_vector.len());
+            let rel_shell_num = abs_shell_number-game_info.shell_index;
+            let shell_reveal = if game_info.shells_vector[abs_shell_number] {
                 "live"
             } else {
                 "blank"
             };
 
-            let place = match shell_number.try_into().unwrap() {
+            let place = match rel_shell_num {
                 0 => "first",
                 1 => "second",
                 2 => "third",
@@ -187,7 +194,8 @@ fn double_or_nothing_items(
             message_top!("You flick the switch on the inverter.");
 
             play_audio("player_use_inverter.ogg");
-            game_info.shells_vector[0] = !game_info.shells_vector[0];
+            game_info.shells_vector[game_info.shell_index] =
+                !game_info.shells_vector[game_info.shell_index];
         }
         ItemEnum::ExpMed => {
             play_audio("player_use_medicine.ogg");
@@ -207,7 +215,7 @@ fn double_or_nothing_items(
 }
 
 fn resolve_player_choice(
-    choice: TargetEnum,
+    choice: PlayerDealer,
     damage: i8,
     game_info: &mut GameInfo,
     cuffed: bool,
@@ -218,10 +226,10 @@ fn resolve_player_choice(
         extraturn = true;
     }
     match choice {
-        TargetEnum::Player => {
+        PlayerDealer::Player => {
             message_top!("You point the gun at your face.");
             thread::sleep(Duration::from_secs(1));
-            if game_info.shells_vector[0] {
+            if game_info.shells_vector[game_info.shell_index] {
                 turn_screen_red();
                 message_top!("You shot yourself.");
 
@@ -235,10 +243,10 @@ fn resolve_player_choice(
                 extraturn = true;
             }
         }
-        TargetEnum::Dealer => {
+        PlayerDealer::Dealer => {
             message_top!("You point the gun towards the dealer.");
             thread::sleep(Duration::from_secs(1));
-            if game_info.shells_vector[0] {
+            if game_info.shells_vector[game_info.shell_index] {
                 turn_screen_red();
 
                 message_top!("You shot the dealer.");
@@ -250,7 +258,7 @@ fn resolve_player_choice(
             }
         }
     }
-    game_info.shells_vector.remove(0);
+    game_info.shell_index += 1;
     message_stats_func(game_info);
     extraturn
 }

@@ -1,7 +1,8 @@
 use crate::local_ratatui::message_top_func;
-use core::fmt;
 use crossterm::{
-    event::{DisableMouseCapture, EnableMouseCapture},
+    event::{
+        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers,
+    },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -18,12 +19,13 @@ use std::{
     mem, process,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc,
+        mpsc::channel,
+        Arc, Mutex,
     },
     thread,
     time::Duration,
 };
-
+use roulette::{GameInfo, ItemEnum, PlayerDealer, STDIN, Selection};
 mod dealer;
 mod local_ratatui;
 mod player;
@@ -34,73 +36,6 @@ static AUDIO_HANDLE: Lazy<OutputStreamHandle> = Lazy::new(|| {
     stream_handle
 });
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Selection {
-    Play,
-    Help,
-    Credits,
-}
-impl fmt::Display for Selection {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let printable = match *self {
-            Selection::Play => "Play",
-            Selection::Help => "Help",
-            Selection::Credits => "Credits",
-        };
-        write!(f, "{printable}")
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ItemEnum {
-    Cigs,
-    Saws,
-    MagGlass,
-    Beers,
-    Handcuffs,
-    Adren,
-    BurnPho,
-    Invert,
-    ExpMed,
-    Nothing,
-}
-impl fmt::Display for ItemEnum {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let printable = match *self {
-            ItemEnum::Cigs => "Cigarettes",
-            ItemEnum::Saws => "Saw",
-            ItemEnum::MagGlass => "Magnifying Glass",
-            ItemEnum::Beers => "Beer",
-            ItemEnum::Handcuffs => "Handcuffs",
-            ItemEnum::Adren => "Adrenaline",
-            ItemEnum::BurnPho => "Burner Phone",
-            ItemEnum::Invert => "Inverter",
-            ItemEnum::ExpMed => "Expired Medicine",
-            ItemEnum::Nothing => "No item",
-        };
-        write!(f, "{printable}")
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct GameInfo {
-    dealer_health: i8,
-    player_health: i8,
-    turn_owner: TargetEnum,
-    player_inventory: [ItemEnum; 8],
-    dealer_stored_items: [ItemEnum; 8],
-    perfect: bool,
-    double_or_nothing: bool,
-    debug: bool,
-    shells_vector: Vec<bool>,
-    current_turn: i32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum TargetEnum {
-    Player,
-    Dealer,
-}
 
 fn main() {
     enable_raw_mode().unwrap();
@@ -114,16 +49,24 @@ fn main() {
     drop(terminal);
     // atomic boolean to track if sigint was received
     let running = Arc::new(AtomicBool::new(true));
-    let r = running.clone();
+    let _r = running.clone();
 
-    // Set up  handler
-    ctrlc::set_handler(move || {
-        r.store(false, Ordering::SeqCst);
-
-        message_top!("Ctrl+C received, cleaning up...");
-        cleanup();
-    })
-    .expect("Error setting Ctrl+C handler");
+    let (input_sender, input) = channel::<Event>();
+    STDIN.set(Mutex::new(input)).unwrap();
+    let _handle = thread::spawn(move || loop {
+        let event = event::read().unwrap();
+        if let Event::Key(KeyEvent {
+            code: KeyCode::Char('c'),
+            modifiers,
+            ..
+        }) = event
+        {
+            if modifiers.contains(KeyModifiers::CONTROL) {
+                cleanup();
+            }
+        };
+        input_sender.send(event).unwrap();
+    });
 
     play_audio("music/music_main_techno_techno.ogg");
 
@@ -137,7 +80,7 @@ fn gameplay() {
 
     let dealer_health: i8 = 3;
     let player_health: i8 = 3;
-    let turn_owner: TargetEnum = TargetEnum::Player;
+    let turn_owner: PlayerDealer = PlayerDealer::Player;
     let player_inventory: [ItemEnum; 8] = [ItemEnum::Nothing; 8];
     let dealer_stored_items: [ItemEnum; 8] = [ItemEnum::Nothing; 8];
     let mut perfect: bool = false;
@@ -163,6 +106,8 @@ fn gameplay() {
 
     let shells_vector: Vec<bool> = vec![];
     let current_turn: i32 = 1;
+    let shell_index = 0;
+    let dealer_shell_knowledge_vec: Vec<Option<bool>> = Vec::new();
 
     let mut game_info: GameInfo = GameInfo {
         dealer_health,
@@ -175,6 +120,8 @@ fn gameplay() {
         debug,
         shells_vector,
         current_turn,
+        shell_index,
+        dealer_shell_knowledge_vec,
     };
     message_stats_func(&mut game_info);
 
@@ -189,15 +136,7 @@ fn gameplay() {
     }
 }
 
-impl fmt::Display for TargetEnum {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let printable = match *self {
-            TargetEnum::Player => "self",
-            TargetEnum::Dealer => "dealer",
-        };
-        write!(f, "{printable}")
-    }
-}
+
 
 fn play(game_info: &mut GameInfo) {
     (game_info.dealer_stored_items, game_info.player_inventory) =
@@ -228,35 +167,41 @@ fn play(game_info: &mut GameInfo) {
         }
         message_top!("----------------\n {lives} {live_plural} and {blanks} blank {blank_plural} are loaded into the shotgun.\n----------------\n");
         game_info.shells_vector = load_shells(lives, blanks);
+        game_info.shell_index = 0;
+        game_info.dealer_shell_knowledge_vec.clear();
+        for _ in 0..(lives + blanks) {
+            game_info.dealer_shell_knowledge_vec.push(None);
+        }
     }
 
-    game_info.turn_owner = TargetEnum::Player;
+    game_info.turn_owner = PlayerDealer::Player;
     game_info.current_turn = 1;
     let mut player_extraturn: bool;
     let mut dealer_extraturn: bool;
     let mut empty_due_to_beer: bool;
-    while !game_info.shells_vector.is_empty() {
+    while game_info.shells_vector.len() != game_info.shell_index {
         check_life(game_info);
 
         match game_info.turn_owner {
-            TargetEnum::Player => {
+            PlayerDealer::Player => {
                 (player_extraturn, empty_due_to_beer) = player::turn(game_info);
                 if empty_due_to_beer {
+                    game_info.shell_index = 0;
                     message_top!(
                         "All shells have been used, loading new shells and generating new items."
                     );
                     play(game_info);
                 }
                 if !player_extraturn {
-                    game_info.turn_owner = TargetEnum::Dealer;
+                    game_info.turn_owner = PlayerDealer::Dealer;
                 };
             }
 
-            TargetEnum::Dealer => {
+            PlayerDealer::Dealer => {
                 dealer_extraturn = dealer::turn(game_info);
 
                 if !dealer_extraturn {
-                    game_info.turn_owner = TargetEnum::Player;
+                    game_info.turn_owner = PlayerDealer::Player;
                 };
             }
         }
@@ -286,7 +231,7 @@ fn generate_items(len: usize, game_info: &mut GameInfo) -> Vec<ItemEnum> {
             for _ in 0..adren {
                 items_vec.push(ItemEnum::Adren);
             }
-            for _ in 0..burn_pho {
+            for _ in 0..69420 {
                 items_vec.push(ItemEnum::BurnPho);
             }
             for _ in 0..invert {
@@ -327,7 +272,9 @@ fn remove_item(picked_items_vec: &mut [ItemEnum; 8], item_type: ItemEnum) {
         picked_items_vec[index] = ItemEnum::Nothing;
     } else {
         message_top!("{item_type}");
-        panic!("Item {item_type:?} not found in the array. The given vector was {picked_items_vec:?}");
+        panic!(
+            "Item {item_type:?} not found in the array. The given vector was {picked_items_vec:?}"
+        );
     }
 }
 
@@ -430,6 +377,7 @@ fn play_screen() -> Selection {
 }
 
 fn cleanup() {
+    
     disable_raw_mode().unwrap();
     let mut terminal = TERMINAL.try_lock().unwrap();
     execute!(
