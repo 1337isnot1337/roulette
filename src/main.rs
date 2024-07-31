@@ -8,15 +8,14 @@ use crossterm::{
 };
 use dealer::picked_to_stored;
 use local_ratatui::{dialogue, message_stats_func, TERMINAL};
-use once_cell::sync::Lazy;
 use player::pick_items;
 use rand::{seq::SliceRandom, Rng};
-use rodio::{Decoder, OutputStream, OutputStreamHandle, Source};
+use rodio::{Decoder, Source};
 use std::{
     env,
     fs::File,
     io::{self, BufReader, Write},
-    mem, process,
+    process,
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc::channel,
@@ -25,16 +24,102 @@ use std::{
     thread,
     time::Duration,
 };
-use roulette::{GameInfo, ItemEnum, PlayerDealer, STDIN, Selection};
 mod dealer;
 mod local_ratatui;
 mod player;
+use once_cell::sync::Lazy;
+use rodio::{OutputStream, OutputStreamHandle};
+use std::{
+    fmt, mem, sync::{mpsc::Receiver, OnceLock}
+};
 
-static AUDIO_HANDLE: Lazy<OutputStreamHandle> = Lazy::new(|| {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Selection {
+    Play,
+    Help,
+    Credits,
+}
+impl fmt::Display for Selection {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let printable = match *self {
+            Selection::Play => "Play",
+            Selection::Help => "Help",
+            Selection::Credits => "Credits",
+        };
+        write!(f, "{printable}")
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ItemEnum {
+    Cigs,
+    Saws,
+    MagGlass,
+    Beers,
+    Handcuffs,
+    Adren,
+    BurnPho,
+    Invert,
+    ExpMed,
+    Nothing,
+}
+impl fmt::Display for ItemEnum {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let printable = match *self {
+            ItemEnum::Cigs => "Cigarettes",
+            ItemEnum::Saws => "Saw",
+            ItemEnum::MagGlass => "Magnifying Glass",
+            ItemEnum::Beers => "Beer",
+            ItemEnum::Handcuffs => "Handcuffs",
+            ItemEnum::Adren => "Adrenaline",
+            ItemEnum::BurnPho => "Burner Phone",
+            ItemEnum::Invert => "Inverter",
+            ItemEnum::ExpMed => "Expired Medicine",
+            ItemEnum::Nothing => "No item",
+        };
+        write!(f, "{printable}")
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GameInfo {
+    pub dealer_health: i8,
+    pub player_health: i8,
+    pub turn_owner: PlayerDealer,
+    pub player_inventory: [ItemEnum; 8],
+    pub dealer_inventory: [ItemEnum; 8],
+    pub perfect: bool,
+    pub double_or_nothing: bool,
+    pub debug: bool,
+    pub shells_vector: Vec<bool>,
+    pub current_turn: i32,
+    pub shell_index: usize,
+    pub dealer_shell_knowledge_vec: Vec<Option<bool>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayerDealer {
+    Player,
+    Dealer,
+}
+impl fmt::Display for PlayerDealer {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let printable = match *self {
+            PlayerDealer::Player => "self",
+            PlayerDealer::Dealer => "dealer",
+        };
+        write!(f, "{printable}")
+    }
+}
+
+pub static STDIN: OnceLock<Mutex<Receiver<Event>>> = OnceLock::new();
+pub static AUDIO_HANDLE: Lazy<OutputStreamHandle> = Lazy::new(|| {
     let (stream, stream_handle) = OutputStream::try_default().unwrap();
     mem::forget(stream);
     stream_handle
 });
+
+
 
 
 fn main() {
@@ -82,7 +167,7 @@ fn gameplay() {
     let player_health: i8 = 3;
     let turn_owner: PlayerDealer = PlayerDealer::Player;
     let player_inventory: [ItemEnum; 8] = [ItemEnum::Nothing; 8];
-    let dealer_stored_items: [ItemEnum; 8] = [ItemEnum::Nothing; 8];
+    let dealer_inventory: [ItemEnum; 8] = [ItemEnum::Nothing; 8];
     let mut perfect: bool = false;
     let mut double_or_nothing: bool = false;
     let mut debug: bool = false;
@@ -114,7 +199,7 @@ fn gameplay() {
         player_health,
         turn_owner,
         player_inventory,
-        dealer_stored_items,
+        dealer_inventory,
         perfect,
         double_or_nothing,
         debug,
@@ -136,17 +221,15 @@ fn gameplay() {
     }
 }
 
-
-
 fn play(game_info: &mut GameInfo) {
-    (game_info.dealer_stored_items, game_info.player_inventory) =
+    (game_info.dealer_inventory, game_info.player_inventory) =
         ([ItemEnum::Nothing; 8], [ItemEnum::Nothing; 8]);
 
     // this block ensures some of the variables used once are dropped fast
     {
         pick_items(game_info);
 
-        game_info.dealer_stored_items = picked_to_stored(generate_items(4, game_info), game_info);
+        game_info.dealer_inventory = picked_to_stored(generate_items(4, game_info), game_info);
         let mut lives: i8;
         let mut blanks: i8;
         loop {
@@ -377,7 +460,6 @@ fn play_screen() -> Selection {
 }
 
 fn cleanup() {
-    
     disable_raw_mode().unwrap();
     let mut terminal = TERMINAL.try_lock().unwrap();
     execute!(

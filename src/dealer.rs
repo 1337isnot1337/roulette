@@ -33,6 +33,7 @@ fn dealer_item_logic(
     mut shell_knowledge: bool,
     extra_turn_var: ExtraTurnVars,
 ) -> DealerMinorInfo {
+   
     if game_info.perfect {
         shell_knowledge = true;
     }
@@ -57,14 +58,14 @@ fn dealer_item_logic(
     message_stats_func(game_info);
     'dealer_item_logic: loop {
         message_stats_func(game_info);
-        if game_info.dealer_stored_items.contains(&ItemEnum::Cigs) & { game_info.dealer_health < 3 }
+        if game_info.dealer_inventory.contains(&ItemEnum::Cigs) & { game_info.dealer_health < 3 }
         {
             item_use(ItemEnum::Cigs, game_info, &mut dealer_minor_info);
             play_audio("dealer_use_cigarettes.ogg");
 
             continue 'dealer_item_logic;
         }
-        if game_info.dealer_stored_items.contains(&ItemEnum::MagGlass)
+        if game_info.dealer_inventory.contains(&ItemEnum::MagGlass)
             && !game_info.dealer_shell_knowledge_vec[game_info.shell_index].unwrap_or(false)
         {
             item_use(ItemEnum::MagGlass, game_info, &mut dealer_minor_info);
@@ -72,7 +73,7 @@ fn dealer_item_logic(
 
             continue 'dealer_item_logic;
         }
-        if game_info.dealer_stored_items.contains(&ItemEnum::Saws)
+        if game_info.dealer_inventory.contains(&ItemEnum::Saws)
             & game_info.dealer_shell_knowledge_vec[game_info.shell_index].unwrap_or(false)
             & game_info.shells_vector[game_info.shell_index]
             && !saw_used
@@ -85,7 +86,7 @@ fn dealer_item_logic(
             dealer_minor_info.damage = 2;
             continue 'dealer_item_logic;
         }
-        if game_info.dealer_stored_items.contains(&ItemEnum::Handcuffs) && {
+        if game_info.dealer_inventory.contains(&ItemEnum::Handcuffs) && {
             dealer_minor_info.extra_turn_var != ExtraTurnVars::Handcuffed
         } {
             item_use(ItemEnum::Handcuffs, game_info, &mut dealer_minor_info);
@@ -94,7 +95,7 @@ fn dealer_item_logic(
             dealer_minor_info.extra_turn_var = ExtraTurnVars::Handcuffed;
             continue 'dealer_item_logic;
         }
-        if game_info.dealer_stored_items.contains(&ItemEnum::Beers)
+        if game_info.dealer_inventory.contains(&ItemEnum::Beers)
             && !game_info.dealer_shell_knowledge_vec[game_info.shell_index].unwrap_or(false)
             && coinflip
             && { game_info.shells_vector.len() > 2 }
@@ -105,7 +106,7 @@ fn dealer_item_logic(
             continue 'dealer_item_logic;
         }
         if game_info.double_or_nothing {
-            if game_info.dealer_stored_items.contains(&ItemEnum::Adren) && {
+            if game_info.dealer_inventory.contains(&ItemEnum::Adren) && {
                 !game_info.player_inventory.is_empty() && false
             } {
                 item_use(ItemEnum::Adren, game_info, &mut dealer_minor_info);
@@ -113,7 +114,7 @@ fn dealer_item_logic(
 
                 continue 'dealer_item_logic;
             }
-            if game_info.dealer_stored_items.contains(&ItemEnum::BurnPho)
+            if game_info.dealer_inventory.contains(&ItemEnum::BurnPho)
                 && lives != 0
                 && game_info.shells_vector.len() > 1
             {
@@ -122,7 +123,7 @@ fn dealer_item_logic(
 
                 continue 'dealer_item_logic;
             }
-            if game_info.dealer_stored_items.contains(&ItemEnum::Invert) && {
+            if game_info.dealer_inventory.contains(&ItemEnum::Invert) && {
                 (game_info.dealer_shell_knowledge_vec[game_info.shell_index].unwrap_or(false)
                     && !game_info.shells_vector[game_info.shell_index])
                     || (lives > blanks)
@@ -132,7 +133,7 @@ fn dealer_item_logic(
 
                 continue 'dealer_item_logic;
             }
-            if game_info.dealer_stored_items.contains(&ItemEnum::ExpMed)
+            if game_info.dealer_inventory.contains(&ItemEnum::ExpMed)
                 && game_info.dealer_health == 2
             {
                 item_use(ItemEnum::ExpMed, game_info, &mut dealer_minor_info);
@@ -223,7 +224,6 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
     }
     game_info.shell_index += 1;
     message_stats_func(game_info);
-    game_info.shells_vector.remove(0);
     thread::sleep(Duration::from_secs(1));
     check_life(game_info);
     message_stats_func(game_info);
@@ -279,14 +279,13 @@ fn item_use(
             todo!();
         }
         ItemEnum::BurnPho => {
-            message_top!("The dealer uses the burner phone.");
-
             let shell_number: usize =
                 rand::thread_rng().gen_range(0..{ game_info.shells_vector.len() });
             //shell number is a rand number from 0 to the length of the current shell vec
             //ie, if there are 3 bullets left the number could be 0,1,2.
-            game_info.dealer_shell_knowledge_vec[shell_number + game_info.shell_index] =
+            game_info.dealer_shell_knowledge_vec[shell_number + game_info.shell_index -1] =
                 Some(game_info.shells_vector[shell_number]);
+            message_top!("The dealer uses the burner phone."); // for debug add ->> it thinks index {shell_number} is {}", game_info.shells_vector[shell_number]
         }
         ItemEnum::Invert => {
             message_top!("The dealer uses the inverter.");
@@ -305,7 +304,7 @@ fn item_use(
             }
         }
     }
-    remove_item(&mut game_info.dealer_stored_items, item_type);
+    remove_item(&mut game_info.dealer_inventory, item_type);
     thread::sleep(Duration::from_millis(500));
     message_stats_func(game_info);
 }
@@ -316,7 +315,7 @@ pub fn picked_to_stored(
     message_top!("The dealer is picking items...");
     let mut index = 0;
     while !picked_items_vec_dealer.is_empty() {
-        if game_info.dealer_stored_items[index] == ItemEnum::Nothing
+        if game_info.dealer_inventory[index] == ItemEnum::Nothing
             && !picked_items_vec_dealer.is_empty()
         {
             let item = picked_items_vec_dealer[0];
@@ -346,11 +345,11 @@ pub fn picked_to_stored(
                 ItemEnum::ExpMed => play_audio("place_down_medicine.ogg"),
                 ItemEnum::Nothing => {}
             }
-            game_info.dealer_stored_items[index] = picked_items_vec_dealer.remove(0);
+            game_info.dealer_inventory[index] = picked_items_vec_dealer.remove(0);
         }
 
         message_stats_func(game_info);
         index += 1;
     }
-    game_info.dealer_stored_items
+    game_info.dealer_inventory
 }

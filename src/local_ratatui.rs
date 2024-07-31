@@ -1,6 +1,6 @@
 use std::{io, sync::Mutex};
 
-use crate::{cleanup, GameInfo, PlayerDealer};
+use crate::{cleanup, GameInfo, PlayerDealer, STDIN};
 use crossterm::event::{Event, KeyCode, KeyModifiers};
 use once_cell::sync::Lazy;
 use ratatui::{
@@ -8,9 +8,8 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style, Stylize},
     terminal::{Frame, Terminal},
-    widgets::{Block, List, ListItem, ListState, Paragraph},
+    widgets::{Block, List, ListItem, ListState},
 };
-use roulette::STDIN;
 // Static lazy-initialized terminal instance
 pub static TERMINAL: Lazy<Mutex<Terminal<CrosstermBackend<io::Stdout>>>> = Lazy::new(|| {
     let stdout = io::stdout();
@@ -66,6 +65,14 @@ macro_rules! message_top {
         message_top_func(&format!($($arg)*));
     }};
 }
+macro_rules! list {
+    ($list_var:expr, $title_var:expr) => {{
+        let list = List::new($list_var.to_owned())
+            .block(Block::bordered().title($title_var))
+            .style(Style::new().white().on_black());
+        list
+    }};
+}
 
 // Function to render the UI
 fn ui(
@@ -81,19 +88,19 @@ fn ui(
     let rect_stat = Rect::new(
         chunks[2].x,
         chunks[2].y,
-        chunks[2].width / 3,
+        chunks[2].width / 2,
         chunks[2].height,
     );
     let rect_dealer_inv = Rect::new(
-        chunks[2].width / 3,
+        chunks[2].width / 2,
         chunks[2].y,
-        chunks[2].width / 3,
+        chunks[2].width / 4,
         chunks[2].height,
     );
     let rect_player_inv = Rect::new(
-        chunks[2].width * 2 / 3,
+        chunks[2].width * 3 / 4,
         chunks[2].y,
-        chunks[2].width / 3,
+        chunks[2].width / 4,
         chunks[2].height,
     );
 
@@ -102,29 +109,11 @@ fn ui(
     let string_array: Vec<&str> = top_message.split('\n').collect();
     let string_array = &string_array[string_array.len().saturating_sub(height)..string_array.len()];
 
-    // Concatenate the lines into a single string
-    let mut final_text = String::new();
-    for item in string_array {
-        final_text.push_str(item);
-        final_text.push('\n');
-    }
-
     // Create widgets for different sections
-    let top_messages = Paragraph::new(final_text)
-        .block(Block::bordered())
-        .style(Style::new().white().on_black());
-
-    let bot_messages = List::new(stat_message.to_owned())
-        .block(Block::bordered().title("Game Information:"))
-        .style(Style::new().white().on_black());
-
-    let player_inv = List::new(player_message.to_owned())
-        .block(Block::bordered().title("Player Inventory:"))
-        .style(Style::new().white().on_black());
-
-    let dealer_inv = List::new(dealer_message.to_owned())
-        .block(Block::bordered().title("Dealer Inventory:"))
-        .style(Style::new().white().on_black());
+    let top_messages = list!(string_array, "Top Messages");
+    let bot_messages = list!(stat_message, "Top Messages");
+    let player_inv = list!(player_message, "Player Inventory");
+    let dealer_inv = list!(dealer_message, "Dealer Inventory");
 
     // Render widgets
     f.render_widget(top_messages, chunks[0]);
@@ -194,7 +183,6 @@ pub fn message_stats_func(game_info: &mut GameInfo) {
     STAT_MESSAGES_VEC.try_lock().unwrap().push(format!(
         "Turn {}. {turn_owner}'s turn. \n\nDealer Health: {} \nPlayer Health: {} \nShell Index: {} 
         {double_or_nothing}{perfect}{debug_info}",
-
         game_info.current_turn,
         game_info.dealer_health,
         game_info.player_health,
@@ -204,7 +192,7 @@ pub fn message_stats_func(game_info: &mut GameInfo) {
     // Update dealer and player inventories
     let mut dealer_inventory = String::new();
     let mut player_inventory = String::new();
-    for item in game_info.dealer_stored_items {
+    for item in game_info.dealer_inventory {
         dealer_inventory.push_str(&format!("\n{item}"));
     }
     for item in game_info.player_inventory {
@@ -266,9 +254,7 @@ pub fn key_event(selected_index: &mut usize, length: usize) -> bool {
 // Function to handle dialogue selection
 pub fn dialogue<T: std::string::ToString>(options: &[T], title: &str) -> usize {
     let mut selected_index = 0;
-    let list = List::new(options.iter().map(|i| ListItem::new(i.to_string())))
-        .block(Block::bordered().title(title))
-        .style(Style::new().white().on_black())
+    let list = list!(options.iter().map(|i| ListItem::new(i.to_string())), title)
         .highlight_style(
             Style::new()
                 .add_modifier(Modifier::BOLD)
@@ -277,6 +263,7 @@ pub fn dialogue<T: std::string::ToString>(options: &[T], title: &str) -> usize {
         .highlight_symbol(">> ");
 
     let mut liststate: ListState = ListState::default();
+
     loop {
         TERMINAL
             .try_lock()

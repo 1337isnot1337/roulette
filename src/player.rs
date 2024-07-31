@@ -146,8 +146,8 @@ fn double_or_nothing_items(
         ItemEnum::Adren => {
             play_audio("player_use_adrenaline.ogg");
             message_top!("You jam the rusty needle into your thigh.");
-            let stolen_item = game_info.dealer_stored_items[dialogue(
-                &game_info.dealer_stored_items,
+            let stolen_item = game_info.dealer_inventory[dialogue(
+                &game_info.dealer_inventory,
                 "Pick one of the dealer's items",
             )];
             if stolen_item == ItemEnum::Adren {
@@ -155,7 +155,7 @@ fn double_or_nothing_items(
             } else {
                 message_top!("You grab the {stolen_item}, and use it.");
 
-                remove_item(&mut game_info.dealer_stored_items, stolen_item);
+                remove_item(&mut game_info.dealer_inventory, stolen_item);
                 (empty_due_to_beer, cuffed, damage) = match_item(
                     true,
                     game_info,
