@@ -11,12 +11,6 @@ use ratatui::{
     widgets::{Block, List, ListItem, ListState},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum BottomVars {
-    Full,
-    Half,
-}
-
 // Static lazy-initialized terminal instance
 pub static TERMINAL: Lazy<Mutex<Terminal<CrosstermBackend<io::Stdout>>>> = Lazy::new(|| {
     let stdout = io::stdout();
