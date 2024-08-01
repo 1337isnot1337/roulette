@@ -19,7 +19,7 @@ pub fn turn(game_info: &mut GameInfo) -> (bool, bool) {
     if !empty_due_to_beer {
         message_stats_func(game_info);
         let targets: [PlayerDealer; 2] = [PlayerDealer::Player, PlayerDealer::Dealer];
-        let selection = dialogue(&targets, "Who to shoot?");
+        let selection = dialogue(&targets, "Who to shoot?", None);
         message_stats_func(game_info);
 
         let choice = targets[selection];
@@ -49,7 +49,11 @@ fn match_item(
             if empty_due_to_beer {
                 break 'item_selection_loop;
             }
-            let selection = dialogue(&game_info.player_inventory, "Items list:");
+            let selection = dialogue(
+                &game_info.player_inventory,
+                "Items list:",
+                Some(PlayerDealer::Player),
+            );
             game_info.player_inventory[selection]
         };
         if !adren_pick {
@@ -149,6 +153,7 @@ fn double_or_nothing_items(
             let stolen_item = game_info.dealer_inventory[dialogue(
                 &game_info.dealer_inventory,
                 "Pick one of the dealer's items",
+                Some(PlayerDealer::Dealer),
             )];
             if stolen_item == ItemEnum::Adren {
                 message_top!("You can't grab the adrenaline.");
@@ -168,9 +173,9 @@ fn double_or_nothing_items(
         }
         ItemEnum::BurnPho => {
             play_audio("player_use_burner_phone.ogg");
-            let abs_shell_number: usize = rand::thread_rng()
-                .gen_range(game_info.shell_index..game_info.shells_vector.len());
-            let rel_shell_num = abs_shell_number-game_info.shell_index;
+            let abs_shell_number: usize =
+                rand::thread_rng().gen_range(game_info.shell_index..game_info.shells_vector.len());
+            let rel_shell_num = abs_shell_number - game_info.shell_index;
             let shell_reveal = if game_info.shells_vector[abs_shell_number] {
                 "live"
             } else {
@@ -201,9 +206,14 @@ fn double_or_nothing_items(
             play_audio("player_use_medicine.ogg");
             message_top!("You takes the expired medicine.");
             let coinflip: bool = rand::thread_rng().gen();
+
             if coinflip {
-                game_info.player_health += 2;
-                message_top!("You feel energy coursing through you.");
+                if game_info.player_health < 3 {
+                    game_info.player_health += 2;
+                    message_top!("You feel energy coursing through you.");
+                } else {
+                    message_top!("The pills don't do anything.");
+                }
             } else {
                 game_info.player_health -= 1;
                 message_top!("You choke and fall over.");
@@ -285,7 +295,11 @@ pub fn pick_items(game_info: &mut GameInfo) {
             "Item #{item_updated} is {}. Place it in your inventory",
             items_vec[0]
         );
-        let selection = dialogue(&game_info.player_inventory, "Inventory");
+        let selection = dialogue(
+            &game_info.player_inventory,
+            "Your Inventory",
+            Some(PlayerDealer::Player),
+        );
 
         match items_vec.first().unwrap() {
             ItemEnum::Cigs => play_audio("place_down_cigarettes.ogg"),

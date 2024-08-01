@@ -1,6 +1,6 @@
 use std::{io, sync::Mutex};
 
-use crate::{cleanup, GameInfo, PlayerDealer, STDIN};
+use crate::{cleanup, GameInfo, PlayerDealer, GAME_BEGUN, STDIN};
 use crossterm::event::{Event, KeyCode, KeyModifiers};
 use once_cell::sync::Lazy;
 use ratatui::{
@@ -10,6 +10,13 @@ use ratatui::{
     terminal::{Frame, Terminal},
     widgets::{Block, List, ListItem, ListState},
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BottomVars {
+    Full,
+    Half,
+}
+
 // Static lazy-initialized terminal instance
 pub static TERMINAL: Lazy<Mutex<Terminal<CrosstermBackend<io::Stdout>>>> = Lazy::new(|| {
     let stdout = io::stdout();
@@ -45,14 +52,7 @@ static DEALER_INV: Lazy<Mutex<Vec<String>>> = Lazy::new(|| {
 static LAYOUT: Lazy<Mutex<Layout>> = Lazy::new(|| {
     Layout::default()
         .direction(Direction::Vertical)
-        .constraints(
-            [
-                Constraint::Percentage(50),
-                Constraint::Percentage(20),
-                Constraint::Fill(1),
-            ]
-            .as_ref(),
-        )
+        .constraints([Constraint::Percentage(70), Constraint::Percentage(30)].as_ref())
         .into()
 });
 
@@ -67,7 +67,7 @@ macro_rules! message_top {
 }
 macro_rules! list {
     ($list_var:expr, $title_var:expr) => {{
-        let list = List::new($list_var.to_owned())
+        let list = List::new($list_var)
             .block(Block::bordered().title($title_var))
             .style(Style::new().white().on_black());
         list
@@ -78,30 +78,30 @@ macro_rules! list {
 fn ui(
     f: &mut Frame,
     top_message: &str,
-    stat_message: &mut [String],
-    player_message: &mut [String],
-    dealer_message: &mut [String],
+    stat_message: Option<&[String]>,
+    player_message: Option<&[String]>,
+    dealer_message: Option<&[String]>,
 ) {
     // Define layout chunks
     let chunks: std::rc::Rc<[Rect]> = LAYOUT.try_lock().unwrap().split(f.size());
     // Define sub-rectangles for different sections
     let rect_stat = Rect::new(
-        chunks[2].x,
-        chunks[2].y,
-        chunks[2].width / 2,
-        chunks[2].height,
-    );
-    let rect_dealer_inv = Rect::new(
-        chunks[2].width / 2,
-        chunks[2].y,
-        chunks[2].width / 4,
-        chunks[2].height,
+        chunks[1].x,
+        chunks[1].y,
+        chunks[1].width / 2,
+        chunks[1].height,
     );
     let rect_player_inv = Rect::new(
-        chunks[2].width * 3 / 4,
-        chunks[2].y,
-        chunks[2].width / 4,
-        chunks[2].height,
+        chunks[1].width / 2,
+        chunks[1].y,
+        chunks[1].width / 4,
+        chunks[1].height,
+    );
+    let rect_dealer_inv = Rect::new(
+        chunks[1].width * 3 / 4,
+        chunks[1].y,
+        chunks[1].width / 4,
+        chunks[1].height,
     );
 
     // Limit the number of lines displayed based on terminal height
@@ -109,17 +109,30 @@ fn ui(
     let string_array: Vec<&str> = top_message.split('\n').collect();
     let string_array = &string_array[string_array.len().saturating_sub(height)..string_array.len()];
 
-    // Create widgets for different sections
-    let top_messages = list!(string_array, "Top Messages");
-    let bot_messages = list!(stat_message, "Top Messages");
-    let player_inv = list!(player_message, "Player Inventory");
-    let dealer_inv = list!(dealer_message, "Dealer Inventory");
+    // Create widgets for different sections && Render widgets
 
-    // Render widgets
+    let top_messages: List = list!(string_array.to_owned(), "Top Messages");
     f.render_widget(top_messages, chunks[0]);
-    f.render_widget(bot_messages, rect_stat);
-    f.render_widget(player_inv, rect_dealer_inv);
-    f.render_widget(dealer_inv, rect_player_inv);
+
+    if stat_message.is_some() {
+        let stat_messages: List = list!(stat_message.unwrap_or_default().to_owned(), "Information");
+        f.render_widget(stat_messages, rect_stat);
+    }
+    if player_message.is_some() {
+        let player_inv: List = list!(
+            player_message.unwrap_or_default().to_owned(),
+            "Your Inventory"
+        );
+
+        f.render_widget(player_inv, rect_dealer_inv);
+    }
+    if dealer_message.is_some() {
+        let dealer_inv: List = list!(
+            dealer_message.unwrap_or_default().to_owned(),
+            "Dealer Inventory"
+        );
+        f.render_widget(dealer_inv, rect_player_inv);
+    }
 }
 
 // Function to handle top messages
@@ -138,9 +151,9 @@ pub fn message_top_func(given_message: &str) {
             ui(
                 f,
                 &TOP_MESSAGES_STRING.try_lock().unwrap(),
-                &mut STAT_MESSAGES_VEC.try_lock().unwrap(),
-                &mut PLAYER_INV.try_lock().unwrap(),
-                &mut DEALER_INV.try_lock().unwrap(),
+                Some(&STAT_MESSAGES_VEC.try_lock().unwrap()),
+                Some(&PLAYER_INV.try_lock().unwrap()),
+                Some(&DEALER_INV.try_lock().unwrap()),
             );
         })
         .unwrap();
@@ -193,10 +206,10 @@ pub fn message_stats_func(game_info: &mut GameInfo) {
     let mut dealer_inventory = String::new();
     let mut player_inventory = String::new();
     for item in game_info.dealer_inventory {
-        dealer_inventory.push_str(&format!("\n{item}"));
+        dealer_inventory.push_str(&format!("   {item}\n"));
     }
     for item in game_info.player_inventory {
-        player_inventory.push_str(&format!("\n{item}"));
+        player_inventory.push_str(&format!("   {item}\n"));
     }
 
     DEALER_INV
@@ -216,9 +229,9 @@ pub fn message_stats_func(game_info: &mut GameInfo) {
             ui(
                 f,
                 &TOP_MESSAGES_STRING.try_lock().unwrap(),
-                &mut STAT_MESSAGES_VEC.try_lock().unwrap(),
-                &mut PLAYER_INV.try_lock().unwrap(),
-                &mut DEALER_INV.try_lock().unwrap(),
+                Some(&STAT_MESSAGES_VEC.try_lock().unwrap()),
+                Some(&PLAYER_INV.try_lock().unwrap()),
+                Some(&DEALER_INV.try_lock().unwrap()),
             );
         })
         .unwrap();
@@ -252,7 +265,11 @@ pub fn key_event(selected_index: &mut usize, length: usize) -> bool {
 }
 
 // Function to handle dialogue selection
-pub fn dialogue<T: std::string::ToString>(options: &[T], title: &str) -> usize {
+pub fn dialogue<T: std::string::ToString>(
+    options: &[T],
+    title: &str,
+    dealer_or_player: Option<PlayerDealer>,
+) -> usize {
     let mut selected_index = 0;
     let list = list!(options.iter().map(|i| ListItem::new(i.to_string())), title)
         .highlight_style(
@@ -272,15 +289,86 @@ pub fn dialogue<T: std::string::ToString>(options: &[T], title: &str) -> usize {
                 liststate.select(Some(selected_index));
 
                 let chunks = LAYOUT.try_lock().unwrap().split(f.size());
-
-                f.render_stateful_widget(&list, chunks[1], &mut liststate);
-                ui(
-                    f,
-                    &TOP_MESSAGES_STRING.try_lock().unwrap(),
-                    &mut STAT_MESSAGES_VEC.try_lock().unwrap(),
-                    &mut PLAYER_INV.try_lock().unwrap(),
-                    &mut DEALER_INV.try_lock().unwrap(),
+                let rect_player_inv = Rect::new(
+                    chunks[1].width / 2,
+                    chunks[1].y,
+                    chunks[1].width / 4,
+                    chunks[1].height,
                 );
+                let rect_dealer_inv = Rect::new(
+                    chunks[1].width * 3 / 4,
+                    chunks[1].y,
+                    chunks[1].width / 4,
+                    chunks[1].height,
+                );
+                let rect_both = Rect::new(
+                    chunks[1].width / 2,
+                    chunks[1].y,
+                    chunks[1].width / 2,
+                    chunks[1].height,
+                );
+
+                let render_deal = match dealer_or_player {
+                    Some(PlayerDealer::Dealer) | None => false,
+                    Some(PlayerDealer::Player) => true,
+                };
+                let render_play = match dealer_or_player {
+                    Some(PlayerDealer::Dealer) => true,
+                    Some(PlayerDealer::Player) | None => false,
+                };
+
+                let mut render_rec = match dealer_or_player {
+                    Some(PlayerDealer::Dealer) => rect_player_inv,
+                    Some(PlayerDealer::Player) => rect_dealer_inv,
+                    None => rect_both,
+                };
+                if render_play {
+                    
+                    let ren_play = Some(PLAYER_INV.try_lock().unwrap());
+
+                    ui(
+                        f,
+                        &TOP_MESSAGES_STRING.try_lock().unwrap(),
+                        Some(&STAT_MESSAGES_VEC.try_lock().unwrap()),
+                        Some(&ren_play.unwrap()),
+                        None,
+                    );
+                }
+                
+                if render_deal {
+                    let ren_deal = Some(DEALER_INV.try_lock().unwrap());
+                    
+                    ui(
+                        f,
+                        &TOP_MESSAGES_STRING.try_lock().unwrap(),
+                        Some(&STAT_MESSAGES_VEC.try_lock().unwrap()),
+                        None,
+                        Some(&ren_deal.unwrap()),
+                    );
+                }
+                if !render_play && !render_deal && (*GAME_BEGUN.try_lock().unwrap()) {
+                    ui(
+                        f,
+                        &TOP_MESSAGES_STRING.try_lock().unwrap(),
+                        Some(&STAT_MESSAGES_VEC.try_lock().unwrap()),
+                        None,
+                        None,
+                    );
+                }
+
+                //if the game has not begun, display no bottom
+                if !(*GAME_BEGUN.try_lock().unwrap()) {
+                    render_rec = chunks[1];
+                    ui(
+                        f,
+                        &TOP_MESSAGES_STRING.try_lock().unwrap(),
+                        None,
+                        None,
+                        None,
+                    );
+                }
+
+                f.render_stateful_widget(&list, render_rec, &mut liststate);
             })
             .unwrap();
         if key_event(&mut selected_index, options.len()) {

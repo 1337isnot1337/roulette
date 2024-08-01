@@ -30,7 +30,8 @@ mod player;
 use once_cell::sync::Lazy;
 use rodio::{OutputStream, OutputStreamHandle};
 use std::{
-    fmt, mem, sync::{mpsc::Receiver, OnceLock}
+    fmt, mem,
+    sync::{mpsc::Receiver, OnceLock},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,6 +50,11 @@ impl fmt::Display for Selection {
         write!(f, "{printable}")
     }
 }
+
+static GAME_BEGUN: Lazy<Mutex<bool>> = Lazy::new(|| {
+    let begun = false;
+    begun.into()
+});
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ItemEnum {
@@ -111,16 +117,16 @@ impl fmt::Display for PlayerDealer {
         write!(f, "{printable}")
     }
 }
-
+pub static ON_OR_OFF_AUDIO: Lazy<Mutex<bool>> = Lazy::new(|| {
+    let thisbool = false;
+    thisbool.into()
+});
 pub static STDIN: OnceLock<Mutex<Receiver<Event>>> = OnceLock::new();
 pub static AUDIO_HANDLE: Lazy<OutputStreamHandle> = Lazy::new(|| {
     let (stream, stream_handle) = OutputStream::try_default().unwrap();
     mem::forget(stream);
     stream_handle
 });
-
-
-
 
 fn main() {
     enable_raw_mode().unwrap();
@@ -153,7 +159,7 @@ fn main() {
         input_sender.send(event).unwrap();
     });
 
-    play_audio("music/music_main_techno_techno.ogg");
+    
 
     while running.load(Ordering::SeqCst) {
         gameplay();
@@ -178,9 +184,11 @@ fn gameplay() {
             "--perfect" => perfect = true,
             "--double" => double_or_nothing = true,
             "--debug" => debug = true,
+            "--no-audio" => *ON_OR_OFF_AUDIO.try_lock().unwrap() = true,
             _ => invalid_args.push(arg),
         }
     }
+    play_audio("music/music_main_techno_techno.ogg");
     if !invalid_args.is_empty() {
         let mut error_string: String = "The following args were not recognized: ".to_owned();
         for arg in invalid_args {
@@ -213,9 +221,12 @@ fn gameplay() {
     enable_raw_mode().unwrap();
 
     match play_screen() {
-        Selection::Play => loop {
-            play(&mut game_info);
-        },
+        Selection::Play => {
+            *GAME_BEGUN.try_lock().unwrap() = true;
+            loop {
+                play(&mut game_info);
+            }
+        }
         Selection::Credits => credits(),
         Selection::Help => help(),
     }
@@ -314,7 +325,7 @@ fn generate_items(len: usize, game_info: &mut GameInfo) -> Vec<ItemEnum> {
             for _ in 0..adren {
                 items_vec.push(ItemEnum::Adren);
             }
-            for _ in 0..69420 {
+            for _ in 0..burn_pho {
                 items_vec.push(ItemEnum::BurnPho);
             }
             for _ in 0..invert {
@@ -396,7 +407,7 @@ fn check_life(game_info: &mut GameInfo) {
             play_audio("winner.ogg");
         }
         message_top!("\n\nSelect continue to continue...");
-        dialogue(&[&"Continue"], "Continue?");
+        dialogue(&[&"Continue"], "Continue?", None);
         message_top!("Continuing...");
         game_info.player_health = 3;
         game_info.dealer_health = 3;
@@ -407,19 +418,24 @@ fn check_life(game_info: &mut GameInfo) {
 }
 
 fn play_audio(path: &'static str) {
-    let path: String = format!("audio/{path}");
+    let audio_avail = ON_OR_OFF_AUDIO.try_lock().unwrap();
+    if !*audio_avail {
+        let path: String = format!("audio/{path}");
 
-    let _handle: thread::JoinHandle<()> = thread::spawn(move || {
-        let file: BufReader<File> = BufReader::new(match File::open(&path) {
-            Ok(t) => t,
-            Err(e) => {
-                panic!("There was an error in audio playing, {e}. The relevent file is at {path}")
-            }
+        let _handle: thread::JoinHandle<()> = thread::spawn(move || {
+            let file: BufReader<File> = BufReader::new(match File::open(&path) {
+                Ok(t) => t,
+                Err(e) => {
+                    panic!(
+                        "There was an error in audio playing, {e}. The relevent file is at {path}"
+                    )
+                }
+            });
+
+            let source: Decoder<BufReader<File>> = Decoder::new(file).unwrap();
+            AUDIO_HANDLE.play_raw(source.convert_samples()).unwrap();
         });
-
-        let source: Decoder<BufReader<File>> = Decoder::new(file).unwrap();
-        AUDIO_HANDLE.play_raw(source.convert_samples()).unwrap();
-    });
+    }
 }
 
 fn turn_screen_red() {
@@ -441,21 +457,21 @@ fn credits() {
     let contents = include_str!("../txt_files/credits.txt");
     message_top!("{contents}");
     message_top!("\n\nSelect continue to continue...");
-    dialogue(&[&"Continue"], "Pick a choice:");
+    dialogue(&[&"Continue"], "Pick a choice:", None);
     message_top!("Continuing...");
 }
 fn help() {
     let contents = include_str!("../txt_files/help.txt");
     message_top!("{contents}");
     message_top!("\n\nSelect continue to continue...");
-    dialogue(&[&"Continue"], "Pick a choice:");
+    dialogue(&[&"Continue"], "Pick a choice:", None);
     message_top!("Continuing...");
 }
 
 fn play_screen() -> Selection {
     let options_vec: [Selection; 3] = [Selection::Play, Selection::Help, Selection::Credits];
     message_top!("Welcome to the game. \nWhat do you wish to do?");
-    let selection = dialogue(&options_vec, "Pick a choice:");
+    let selection = dialogue(&options_vec, "Pick a choice:", None);
     options_vec[selection]
 }
 
