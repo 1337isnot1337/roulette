@@ -32,7 +32,7 @@ pub fn turn(game_info: &mut GameInfo) -> (bool, bool) {
 
     (extraturn, empty_due_to_beer)
 }
-
+#[allow(clippy::too_many_lines)]
 fn match_item(
     mut adren_pick: bool,
     game_info: &mut GameInfo,
@@ -41,28 +41,37 @@ fn match_item(
     mut cuffed: bool,
     adren_item: Option<ItemEnum>,
 ) -> (bool, bool, i8) {
+    
     'item_selection_loop: loop {
+        
         message_stats_func(game_info);
+        
         let item_type: ItemEnum = if adren_pick {
+            
+            adren_pick = false;
             adren_item.unwrap()
         } else {
+            
             if empty_due_to_beer {
+                
                 break 'item_selection_loop;
             }
+
             let selection = dialogue(
                 &game_info.player_inventory,
-                "Items list:",
+                "Your Inventory",
                 Some(PlayerDealer::Player),
             );
-            game_info.player_inventory[selection]
+            
+            
+            let result = game_info.player_inventory[selection];
+            remove_item(&mut game_info.player_inventory, selection);
+            result
         };
-        if !adren_pick {
-            remove_item(&mut game_info.player_inventory, item_type);
-        }
-        if adren_pick {
-            adren_pick = false;
-        }
+        
+       
         message_stats_func(game_info);
+        
         match item_type {
             ItemEnum::Cigs => {
                 play_audio("player_use_cigarettes.ogg");
@@ -74,14 +83,14 @@ fn match_item(
                     message_top!("You light one of the cigs. Your head feels hazy, but you feel power coursing through your veins.");
                     game_info.player_health += 1;
                 }
-
+                
                 continue 'item_selection_loop;
             }
             ItemEnum::Saws => {
                 play_audio("player_use_handsaw.ogg");
                 message_top!("Shhk. You slice off the tip of the gun. It'll do 2 damage now.");
                 damage = 2;
-
+                
                 continue 'item_selection_loop;
             }
             ItemEnum::MagGlass => {
@@ -95,7 +104,7 @@ fn match_item(
                         "Upon closer inspection, you realize that there's a blank round loaded."
                     );
                 }
-
+                
                 continue 'item_selection_loop;
             }
             ItemEnum::Handcuffs => {
@@ -104,7 +113,7 @@ fn match_item(
                     "The dealer grabs the handcuffs from your outstretched hand, putting them on."
                 );
                 cuffed = true;
-
+                
                 continue 'item_selection_loop;
             }
             ItemEnum::Beers => {
@@ -118,7 +127,7 @@ fn match_item(
                     message_top!("You give the shotgun a pump. A blank round drops out.");
                 };
                 game_info.shell_index += 1;
-
+                
                 continue 'item_selection_loop;
             }
             ItemEnum::Nothing => {}
@@ -130,9 +139,13 @@ fn match_item(
                     damage,
                     cuffed,
                 );
+                
                 continue 'item_selection_loop;
             }
         }
+
+        
+        
         break;
     }
     (empty_due_to_beer, cuffed, damage)
@@ -150,17 +163,18 @@ fn double_or_nothing_items(
         ItemEnum::Adren => {
             play_audio("player_use_adrenaline.ogg");
             message_top!("You jam the rusty needle into your thigh.");
-            let stolen_item = game_info.dealer_inventory[dialogue(
+            let sel_index = dialogue(
                 &game_info.dealer_inventory,
                 "Pick one of the dealer's items",
                 Some(PlayerDealer::Dealer),
-            )];
+            );
+            let stolen_item = game_info.dealer_inventory[sel_index];
             if stolen_item == ItemEnum::Adren {
                 message_top!("You can't grab the adrenaline.");
             } else {
                 message_top!("You grab the {stolen_item}, and use it.");
 
-                remove_item(&mut game_info.dealer_inventory, stolen_item);
+                remove_item(&mut game_info.dealer_inventory, sel_index);
                 (empty_due_to_beer, cuffed, damage) = match_item(
                     true,
                     game_info,

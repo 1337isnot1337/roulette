@@ -159,8 +159,6 @@ fn main() {
         input_sender.send(event).unwrap();
     });
 
-    
-
     while running.load(Ordering::SeqCst) {
         gameplay();
     }
@@ -352,7 +350,7 @@ fn generate_items(len: usize, game_info: &mut GameInfo) -> Vec<ItemEnum> {
     for _ in 0..handcuffs {
         items_vec.push(ItemEnum::Handcuffs);
     }
-    for _ in 0..10 {
+    for _ in 0..15 {
         let mut rng = rand::thread_rng();
         items_vec.as_mut_slice().shuffle(&mut rng);
     }
@@ -361,15 +359,8 @@ fn generate_items(len: usize, game_info: &mut GameInfo) -> Vec<ItemEnum> {
     items_vec.iter().take(len).copied().collect::<Vec<_>>()
 }
 
-fn remove_item(picked_items_vec: &mut [ItemEnum; 8], item_type: ItemEnum) {
-    if let Some(index) = picked_items_vec.iter().position(|&x| x == item_type) {
-        picked_items_vec[index] = ItemEnum::Nothing;
-    } else {
-        message_top!("{item_type}");
-        panic!(
-            "Item {item_type:?} not found in the array. The given vector was {picked_items_vec:?}"
-        );
-    }
+fn remove_item(picked_items_vec: &mut [ItemEnum; 8], index: usize) {
+    picked_items_vec[index] = ItemEnum::Nothing;
 }
 
 //loading the shotgun shells
@@ -398,7 +389,7 @@ fn load_shells(lives: i8, blanks: i8) -> Vec<bool> {
 fn check_life(game_info: &mut GameInfo) {
     if game_info.player_health < 1 || game_info.dealer_health < 1 {
         if game_info.player_health < 1 {
-            message_top!("\n\nYou have no lives left. Game over. \n\n Play Again? \n");
+            message_top!("\n\nYou have no lives left. Game over. \n\nPlay Again? \n");
         }
         if game_info.dealer_health < 1 {
             message_top!(
@@ -406,14 +397,16 @@ fn check_life(game_info: &mut GameInfo) {
             );
             play_audio("winner.ogg");
         }
-        message_top!("\n\nSelect continue to continue...");
-        dialogue(&[&"Continue"], "Continue?", None);
-        message_top!("Continuing...");
-        game_info.player_health = 3;
-        game_info.dealer_health = 3;
-        game_info.current_turn = 1;
-        game_info.shells_vector.clear();
-        gameplay();
+        message_top!("\n\nPlay Again?");
+        if dialogue(&["Continue", "Quit Game"], "Continue?", None) == 0 {
+            game_info.player_health = 3;
+            game_info.dealer_health = 3;
+            game_info.current_turn = 1;
+            game_info.shells_vector.clear();
+            gameplay();
+        } else {
+            cleanup();
+        }
     }
 }
 

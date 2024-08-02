@@ -105,7 +105,7 @@ fn ui(
 
     // Create widgets for different sections && Render widgets
 
-    let top_messages: List = list!(string_array.to_owned(), "Top Messages");
+    let top_messages: List = list!(string_array.to_owned(), "");
     f.render_widget(top_messages, chunks[0]);
 
     if stat_message.is_some() {
@@ -118,14 +118,14 @@ fn ui(
             "Your Inventory"
         );
 
-        f.render_widget(player_inv, rect_dealer_inv);
+        f.render_widget(player_inv, rect_player_inv);
     }
     if dealer_message.is_some() {
         let dealer_inv: List = list!(
             dealer_message.unwrap_or_default().to_owned(),
             "Dealer Inventory"
         );
-        f.render_widget(dealer_inv, rect_player_inv);
+        f.render_widget(dealer_inv, rect_dealer_inv);
     }
 }
 
@@ -302,64 +302,55 @@ pub fn dialogue<T: std::string::ToString>(
                     chunks[1].height,
                 );
 
-                let render_deal = match dealer_or_player {
-                    Some(PlayerDealer::Dealer) | None => false,
-                    Some(PlayerDealer::Player) => true,
-                };
-                let render_play = match dealer_or_player {
-                    Some(PlayerDealer::Dealer) => true,
-                    Some(PlayerDealer::Player) | None => false,
-                };
-
                 let mut render_rec = match dealer_or_player {
-                    Some(PlayerDealer::Dealer) => rect_player_inv,
-                    Some(PlayerDealer::Player) => rect_dealer_inv,
+                    Some(PlayerDealer::Dealer) => rect_dealer_inv,
+                    Some(PlayerDealer::Player) => rect_player_inv,
                     None => rect_both,
                 };
-                if render_play {
-                    
-                    let ren_play = Some(PLAYER_INV.try_lock().unwrap());
-
-                    ui(
-                        f,
-                        &TOP_MESSAGES_STRING.try_lock().unwrap(),
-                        Some(&STAT_MESSAGES_VEC.try_lock().unwrap()),
-                        Some(&ren_play.unwrap()),
-                        None,
-                    );
-                }
-                
-                if render_deal {
-                    let ren_deal = Some(DEALER_INV.try_lock().unwrap());
-                    
-                    ui(
-                        f,
-                        &TOP_MESSAGES_STRING.try_lock().unwrap(),
-                        Some(&STAT_MESSAGES_VEC.try_lock().unwrap()),
-                        None,
-                        Some(&ren_deal.unwrap()),
-                    );
-                }
-                if !render_play && !render_deal && (*GAME_BEGUN.try_lock().unwrap()) {
-                    ui(
-                        f,
-                        &TOP_MESSAGES_STRING.try_lock().unwrap(),
-                        Some(&STAT_MESSAGES_VEC.try_lock().unwrap()),
-                        None,
-                        None,
-                    );
-                }
-
-                //if the game has not begun, display no bottom
-                if !(*GAME_BEGUN.try_lock().unwrap()) {
-                    render_rec = chunks[1];
-                    ui(
-                        f,
-                        &TOP_MESSAGES_STRING.try_lock().unwrap(),
-                        None,
-                        None,
-                        None,
-                    );
+                match dealer_or_player {
+                    //if the dialogue func renders the dealer, ui should render the player
+                    Some(PlayerDealer::Dealer) => {
+                        ui(
+                            f,
+                            &TOP_MESSAGES_STRING.try_lock().unwrap(),
+                            Some(&STAT_MESSAGES_VEC.try_lock().unwrap()),
+                            Some(&PLAYER_INV.try_lock().unwrap()),
+                            None,
+                        );
+                    }
+                    //if the dialogue func renders the player, ui should render the dealer
+                    Some(PlayerDealer::Player) => {
+                        
+                        ui(
+                            f,
+                            &TOP_MESSAGES_STRING.try_lock().unwrap(),
+                            Some(&STAT_MESSAGES_VEC.try_lock().unwrap()),
+                            None,
+                            Some(&DEALER_INV.try_lock().unwrap()),
+                        );
+                    }
+                    //if we should render dealer & player as one block
+                    None => {
+                        if *GAME_BEGUN.try_lock().unwrap() {
+                            ui(
+                                f,
+                                &TOP_MESSAGES_STRING.try_lock().unwrap(),
+                                Some(&STAT_MESSAGES_VEC.try_lock().unwrap()),
+                                None,
+                                None,
+                            );
+                            //if the game has not begun, display no bottom
+                        } else {
+                            render_rec = chunks[1];
+                            ui(
+                                f,
+                                &TOP_MESSAGES_STRING.try_lock().unwrap(),
+                                None,
+                                None,
+                                None,
+                            );
+                        }
+                    }
                 }
 
                 f.render_stateful_widget(&list, render_rec, &mut liststate);
