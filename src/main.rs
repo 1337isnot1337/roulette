@@ -342,7 +342,7 @@ fn generate_items(len: usize, game_info: &mut GameInfo) -> Vec<ItemEnum> {
     for _ in 0..saws {
         items_vec.push(ItemEnum::Saws);
     }
-    for _ in 0..1000 {
+    for _ in 0..beers {
         items_vec.push(ItemEnum::Beers);
     }
     for _ in 0..cigs {
