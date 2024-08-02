@@ -1,6 +1,6 @@
 use std::{io, sync::Mutex};
 
-use crate::{cleanup, GameInfo, PlayerDealer, GAME_BEGUN, STDIN};
+use crate::{cleanup, GameInfo, PlayerDealer, GAME_BEGUN, PREVIOUS_INDEX, STDIN};
 use crossterm::event::{Event, KeyCode, KeyModifiers};
 use once_cell::sync::Lazy;
 use ratatui::{
@@ -263,8 +263,13 @@ pub fn dialogue<T: std::string::ToString>(
     options: &[T],
     title: &str,
     dealer_or_player: Option<PlayerDealer>,
+    keep_index: bool,
 ) -> usize {
-    let mut selected_index = 0;
+    let mut selected_index: usize = 0;
+    if keep_index {
+        selected_index = *PREVIOUS_INDEX.try_lock().unwrap();
+    }
+
     let list = list!(options.iter().map(|i| ListItem::new(i.to_string())), title)
         .highlight_style(
             Style::new()
@@ -320,7 +325,6 @@ pub fn dialogue<T: std::string::ToString>(
                     }
                     //if the dialogue func renders the player, ui should render the dealer
                     Some(PlayerDealer::Player) => {
-                        
                         ui(
                             f,
                             &TOP_MESSAGES_STRING.try_lock().unwrap(),

@@ -1,5 +1,5 @@
 use crate::local_ratatui::{dialogue, message_stats_func};
-use crate::message_top_func;
+use crate::{message_top_func, PREVIOUS_INDEX};
 use crate::{
     check_life, generate_items, message_top, play_audio, remove_item, turn_screen_red, GameInfo,
     ItemEnum, PlayerDealer,
@@ -19,7 +19,7 @@ pub fn turn(game_info: &mut GameInfo) -> (bool, bool) {
     if !empty_due_to_beer {
         message_stats_func(game_info);
         let targets: [PlayerDealer; 2] = [PlayerDealer::Player, PlayerDealer::Dealer];
-        let selection = dialogue(&targets, "Who to shoot?", None);
+        let selection = dialogue(&targets, "Who to shoot?", None, false);
         message_stats_func(game_info);
 
         let choice = targets[selection];
@@ -61,7 +61,9 @@ fn match_item(
                 &game_info.player_inventory,
                 "Your Inventory",
                 Some(PlayerDealer::Player),
+                true,
             );
+            *PREVIOUS_INDEX.try_lock().unwrap() = selection;
             
             
             let result = game_info.player_inventory[selection];
@@ -118,7 +120,7 @@ fn match_item(
             }
             ItemEnum::Beers => {
                 play_audio("player_use_beer.ogg");
-                if game_info.shells_vector.len() == game_info.shell_index {
+                if (game_info.shells_vector.len() - 1) == game_info.shell_index {
                     empty_due_to_beer = true;
                 }
                 if game_info.shells_vector[game_info.shell_index] {
@@ -167,7 +169,9 @@ fn double_or_nothing_items(
                 &game_info.dealer_inventory,
                 "Pick one of the dealer's items",
                 Some(PlayerDealer::Dealer),
+                false,
             );
+            
             let stolen_item = game_info.dealer_inventory[sel_index];
             if stolen_item == ItemEnum::Adren {
                 message_top!("You can't grab the adrenaline.");
@@ -313,7 +317,9 @@ pub fn pick_items(game_info: &mut GameInfo) {
             &game_info.player_inventory,
             "Your Inventory",
             Some(PlayerDealer::Player),
+            true,
         );
+        *PREVIOUS_INDEX.try_lock().unwrap() = selection;
 
         match items_vec.first().unwrap() {
             ItemEnum::Cigs => play_audio("place_down_cigarettes.ogg"),

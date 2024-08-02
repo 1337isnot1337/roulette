@@ -121,6 +121,10 @@ pub static ON_OR_OFF_AUDIO: Lazy<Mutex<bool>> = Lazy::new(|| {
     let thisbool = false;
     thisbool.into()
 });
+pub static PREVIOUS_INDEX: Lazy<Mutex<usize>> = Lazy::new(|| {
+    let prev_index: usize = 0;
+    prev_index.into()
+});
 pub static STDIN: OnceLock<Mutex<Receiver<Event>>> = OnceLock::new();
 pub static AUDIO_HANDLE: Lazy<OutputStreamHandle> = Lazy::new(|| {
     let (stream, stream_handle) = OutputStream::try_default().unwrap();
@@ -317,7 +321,7 @@ fn generate_items(len: usize, game_info: &mut GameInfo) -> Vec<ItemEnum> {
     if game_info.double_or_nothing {
         let adren: u8 = rand::thread_rng().gen_range(4..6);
         let burn_pho: u8 = rand::thread_rng().gen_range(4..7);
-        let invert: u8 = rand::thread_rng().gen_range(4..8);
+        let invert: u8 = rand::thread_rng().gen_range(4..7);
         let exp_med: u8 = rand::thread_rng().gen_range(4..8);
         if game_info.double_or_nothing {
             for _ in 0..adren {
@@ -338,7 +342,7 @@ fn generate_items(len: usize, game_info: &mut GameInfo) -> Vec<ItemEnum> {
     for _ in 0..saws {
         items_vec.push(ItemEnum::Saws);
     }
-    for _ in 0..beers {
+    for _ in 0..1000 {
         items_vec.push(ItemEnum::Beers);
     }
     for _ in 0..cigs {
@@ -350,7 +354,7 @@ fn generate_items(len: usize, game_info: &mut GameInfo) -> Vec<ItemEnum> {
     for _ in 0..handcuffs {
         items_vec.push(ItemEnum::Handcuffs);
     }
-    for _ in 0..15 {
+    for _ in 0..40 {
         let mut rng = rand::thread_rng();
         items_vec.as_mut_slice().shuffle(&mut rng);
     }
@@ -398,7 +402,7 @@ fn check_life(game_info: &mut GameInfo) {
             play_audio("winner.ogg");
         }
         message_top!("\n\nPlay Again?");
-        if dialogue(&["Continue", "Quit Game"], "Continue?", None) == 0 {
+        if dialogue(&["Continue", "Quit Game"], "Continue?", None, false) == 0 {
             game_info.player_health = 3;
             game_info.dealer_health = 3;
             game_info.current_turn = 1;
@@ -450,21 +454,21 @@ fn credits() {
     let contents = include_str!("../txt_files/credits.txt");
     message_top!("{contents}");
     message_top!("\n\nSelect continue to continue...");
-    dialogue(&[&"Continue"], "Pick a choice:", None);
+    dialogue(&[&"Continue"], "Pick a choice:", None, false);
     message_top!("Continuing...");
 }
 fn help() {
     let contents = include_str!("../txt_files/help.txt");
     message_top!("{contents}");
     message_top!("\n\nSelect continue to continue...");
-    dialogue(&[&"Continue"], "Pick a choice:", None);
+    dialogue(&[&"Continue"], "Pick a choice:", None, false);
     message_top!("Continuing...");
 }
 
 fn play_screen() -> Selection {
     let options_vec: [Selection; 3] = [Selection::Play, Selection::Help, Selection::Credits];
     message_top!("Welcome to the game. \nWhat do you wish to do?");
-    let selection = dialogue(&options_vec, "Pick a choice:", None);
+    let selection = dialogue(&options_vec, "Pick a choice:", None, false);
     options_vec[selection]
 }
 

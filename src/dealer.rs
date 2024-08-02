@@ -31,7 +31,6 @@ struct DealerMinorInfo {
 fn dealer_item_logic(
     game_info: &mut GameInfo,
     damage: i8,
-    shell_knowledge: bool,
     extra_turn_var: ExtraTurnVars,
 ) -> DealerMinorInfo {
     
@@ -98,7 +97,7 @@ fn dealer_item_logic(
         if game_info.dealer_inventory.contains(&ItemEnum::Beers)
             && !game_info.dealer_shell_knowledge_vec[game_info.shell_index].unwrap_or(false)
             && coinflip
-            && { game_info.shells_vector.len() > 2 }
+            && { game_info.shells_vector.len() - game_info.shell_index > 2 }
         {
             item_use(ItemEnum::Beers, game_info, &mut dealer_minor_info, false);
             play_audio("dealer_use_beer.ogg");
@@ -154,9 +153,8 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
     message_stats_func(game_info);
     let damage: i8 = 1;
     // future goal: add logic for having dealer pick certain items
-    let shell_knowledge = false;
     let extra_turn_var = ExtraTurnVars::None;
-    let dealer_minor_info = dealer_item_logic(game_info, damage, shell_knowledge, extra_turn_var);
+    let dealer_minor_info = dealer_item_logic(game_info, damage, extra_turn_var);
 
     let choice: bool = if game_info.perfect
         | game_info.dealer_shell_knowledge_vec[game_info.shell_index].unwrap_or(false)
