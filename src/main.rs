@@ -7,7 +7,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use dealer::picked_to_stored;
-use local_ratatui::{dialogue, message_stats_func, TERMINAL};
+use local_ratatui::{dialogue, get_input, message_stats_func, TERMINAL};
 use player::pick_items;
 use rand::{seq::SliceRandom, Rng};
 use rodio::{Decoder, Source};
@@ -131,6 +131,10 @@ pub static AUDIO_HANDLE: Lazy<OutputStreamHandle> = Lazy::new(|| {
     mem::forget(stream);
     stream_handle
 });
+pub static PLAYER_NAME: Lazy<Mutex<String>> = Lazy::new(|| {
+    let name: String = String::new();
+    name.into()
+});
 
 fn main() {
     enable_raw_mode().unwrap();
@@ -190,15 +194,16 @@ fn gameplay() {
             _ => invalid_args.push(arg),
         }
     }
-    play_audio("music/music_main_techno_techno.ogg");
+
     if !invalid_args.is_empty() {
         let mut error_string: String = "The following args were not recognized: ".to_owned();
         for arg in invalid_args {
             error_string.push_str(&format!("{}, ", &arg));
         }
-        panic!("{error_string}");
+        message_top!("{error_string}");
+        process::exit(0)
     }
-
+    play_audio("music/music_main_techno_techno.ogg");
     let shells_vector: Vec<bool> = vec![];
     let current_turn: i32 = 1;
     let shell_index = 0;
@@ -225,6 +230,11 @@ fn gameplay() {
     match play_screen() {
         Selection::Play => {
             *GAME_BEGUN.try_lock().unwrap() = true;
+            message_top!("\nPlease read and sign the following release of liability\n");
+            thread::sleep(Duration::from_millis(2000));
+            display_liability();
+            *PLAYER_NAME.try_lock().unwrap() = get_input();
+
             loop {
                 play(&mut game_info);
             }
@@ -284,7 +294,7 @@ fn play(game_info: &mut GameInfo) {
                 if empty_due_to_beer {
                     game_info.shell_index = 0;
                     message_top!(
-                        "All shells have been used, loading new shells and generating new items."
+                        "\nAll shells have been used, loading new shells and generating new items."
                     );
                     play(game_info);
                 }
@@ -393,11 +403,11 @@ fn load_shells(lives: i8, blanks: i8) -> Vec<bool> {
 fn check_life(game_info: &mut GameInfo) {
     if game_info.player_health < 1 || game_info.dealer_health < 1 {
         if game_info.player_health < 1 {
-            message_top!("\n\nYou have no lives left. Game over. \n\nPlay Again? \n");
+            message_top!("\n\n{}, you have no lives left. Game over.", PLAYER_NAME.try_lock().unwrap());
         }
         if game_info.dealer_health < 1 {
             message_top!(
-                "\n\nDealer has no lives left. You win!\n\nStart a new game, if you wish. \n\n"
+                "\n\nDealer has no lives left. {} wins!\n\nStart a new game, if you wish. \n", PLAYER_NAME.try_lock().unwrap()
             );
             play_audio("winner.ogg");
         }
@@ -454,21 +464,21 @@ fn credits() {
     let contents = include_str!("../txt_files/credits.txt");
     message_top!("{contents}");
     message_top!("\n\nSelect continue to continue...");
-    dialogue(&[&"Continue"], "Pick a choice:", None, false);
+    dialogue(&[&"Continue"], "Continue", None, false);
     message_top!("Continuing...");
 }
 fn help() {
     let contents = include_str!("../txt_files/help.txt");
     message_top!("{contents}");
     message_top!("\n\nSelect continue to continue...");
-    dialogue(&[&"Continue"], "Pick a choice:", None, false);
+    dialogue(&[&"Continue"], "Continue", None, false);
     message_top!("Continuing...");
 }
 
 fn play_screen() -> Selection {
     let options_vec: [Selection; 3] = [Selection::Play, Selection::Help, Selection::Credits];
     message_top!("Welcome to the game. \nWhat do you wish to do?");
-    let selection = dialogue(&options_vec, "Pick a choice:", None, false);
+    let selection = dialogue(&options_vec, "Continue", None, false);
     options_vec[selection]
 }
 
@@ -486,4 +496,14 @@ fn cleanup() {
     io::stdout().flush().unwrap();
     clearscreen::clear().expect("Failed to clear screen");
     process::exit(0);
+}
+
+fn display_liability() {
+    let split_vec = include_str!("../txt_files/liability.txt")
+        .split('\n');
+    for line in split_vec {
+        message_top!("{line}");
+        thread::sleep(Duration::from_millis(100));
+    }
+    
 }

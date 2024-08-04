@@ -33,7 +33,6 @@ fn dealer_item_logic(
     damage: i8,
     extra_turn_var: ExtraTurnVars,
 ) -> DealerMinorInfo {
-    
     message_stats_func(game_info);
     let mut dealer_minor_info: DealerMinorInfo = DealerMinorInfo {
         extra_turn_var,
@@ -159,19 +158,13 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
     let choice: bool = if game_info.perfect
         | game_info.dealer_shell_knowledge_vec[game_info.shell_index].unwrap_or(false)
     {
-        if !game_info.perfect {
-            assert_eq!(
-                game_info.dealer_shell_knowledge_vec[game_info.shell_index].unwrap(),
-                game_info.shells_vector[game_info.shell_index]
-            );
-        }
         game_info.shells_vector[game_info.shell_index]
     } else {
         //logic for the dealer's choice
         let mut lives = 0;
         let mut blanks = 0;
-
-        for item in &game_info.shells_vector {
+        let cur_svec = &game_info.shells_vector[game_info.shell_index..];
+        for item in cur_svec {
             if *item {
                 lives += 1;
             } else {
@@ -256,7 +249,6 @@ fn item_use(
             }
         }
         ItemEnum::Saws => {
-            
             message_top!("Shhk. The dealer slices off the tip of the gun. It'll do 2 damage now.");
             dealer_minor_info.damage = 2;
         }
@@ -343,7 +335,6 @@ fn item_use(
         }
     }
     if adren_item {
-        
     } else {
         remove_item(&mut game_info.dealer_inventory, index.unwrap());
     }

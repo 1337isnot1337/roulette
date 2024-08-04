@@ -1,5 +1,3 @@
-use std::{io, sync::Mutex};
-
 use crate::{cleanup, GameInfo, PlayerDealer, GAME_BEGUN, PREVIOUS_INDEX, STDIN};
 use crossterm::event::{Event, KeyCode, KeyModifiers};
 use once_cell::sync::Lazy;
@@ -10,6 +8,7 @@ use ratatui::{
     terminal::{Frame, Terminal},
     widgets::{Block, List, ListItem, ListState},
 };
+use std::{io, sync::Mutex, thread, time::Duration};
 
 // Static lazy-initialized terminal instance
 pub static TERMINAL: Lazy<Mutex<Terminal<CrosstermBackend<io::Stdout>>>> = Lazy::new(|| {
@@ -137,7 +136,7 @@ pub fn message_top_func(given_message: &str) {
         .push_str(&format!("{given_message}\n"));
 
     // Clear the terminal and redraw the UI
-    TERMINAL.try_lock().unwrap().clear().unwrap();
+
     TERMINAL
         .try_lock()
         .unwrap()
@@ -365,4 +364,95 @@ pub fn dialogue<T: std::string::ToString>(
         }
     }
     selected_index
+}
+
+pub fn get_input() -> String {
+    let mut input: [String; 1] = [String::new()];
+    let mut to_break = false;
+    loop {
+        let display_input = &mut input;
+        display_input[0].push('█');
+        let list = List::new(display_input.clone())
+            .block(Block::bordered().title("Please enter your name"))
+            .style(Style::new().white().on_black());
+        TERMINAL
+            .try_lock()
+            .unwrap()
+            .draw(|f: &mut Frame| {
+                let chunks = LAYOUT.try_lock().unwrap().split(f.size());
+
+                f.render_widget(list.clone(), chunks[1]);
+                ui(
+                    f,
+                    &TOP_MESSAGES_STRING.try_lock().unwrap(),
+                    None,
+                    None,
+                    None,
+                );
+            })
+            .unwrap();
+        display_input[0].pop();
+        (input[0], to_break) = get_name(input[0].clone());
+        if to_break {
+            break;
+        }
+    }
+    TOP_MESSAGES_STRING.try_lock().unwrap().pop();
+    TOP_MESSAGES_STRING
+        .try_lock()
+        .unwrap()
+        .push_str(&format!(" {}\n\n\n\n", &input[0]));
+
+    // Clear the terminal and redraw the UI
+    thread::sleep(Duration::from_millis(200));
+    TOP_MESSAGES_STRING.try_lock().unwrap().clear();
+    TERMINAL
+        .try_lock()
+        .unwrap()
+        .draw(|f: &mut Frame| {
+            ui(
+                f,
+                &TOP_MESSAGES_STRING.try_lock().unwrap(),
+                Some(&STAT_MESSAGES_VEC.try_lock().unwrap()),
+                Some(&PLAYER_INV.try_lock().unwrap()),
+                Some(&DEALER_INV.try_lock().unwrap()),
+            );
+        })
+        .unwrap();
+    
+    input[0].clone()
+}
+
+fn get_name(current_text: String) -> (String, bool) {
+    let mut name = current_text;
+    let mut result = false;
+    if let Event::Key(key) = STDIN.get().unwrap().lock().unwrap().recv().unwrap() {
+        // Handle CTRL+C to cleanup
+        if key.modifiers.contains(KeyModifiers::CONTROL)
+            && (key.code == crossterm::event::KeyCode::Char('c'))
+        {
+            cleanup();
+        }
+        // Handle navigation keys
+        match key.code {
+            KeyCode::Enter => {
+                if !name.is_empty() {
+                    result = true;
+                }
+            }
+            KeyCode::Char(char) => {
+                if name.len() < 6 {
+                    name.push(char);
+                }
+            }
+            KeyCode::Backspace => {
+                if !name.is_empty() {
+                    _ = name.pop().unwrap();
+                };
+            }
+            _ => {}
+        }
+    }
+
+    (name, result)
 }
