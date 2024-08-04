@@ -7,7 +7,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use dealer::picked_to_stored;
-use local_ratatui::{dialogue, get_input, message_stats_func, TERMINAL};
+use local_ratatui::{dialogue, get_input, message_stats_func, show_shells, TERMINAL};
 use player::pick_items;
 use rand::{seq::SliceRandom, Rng};
 use rodio::{Decoder, Source};
@@ -231,7 +231,7 @@ fn gameplay() {
         Selection::Play => {
             *GAME_BEGUN.try_lock().unwrap() = true;
             message_top!("\nPlease read and sign the following release of liability\n");
-            thread::sleep(Duration::from_millis(2000));
+            thread::sleep(Duration::from_millis(1200));
             display_liability();
             *PLAYER_NAME.try_lock().unwrap() = get_input();
 
@@ -253,25 +253,16 @@ fn play(game_info: &mut GameInfo) {
         pick_items(game_info);
 
         game_info.dealer_inventory = picked_to_stored(generate_items(4, game_info), game_info);
-        let mut lives: i8;
-        let mut blanks: i8;
+        let mut lives: u8;
+        let mut blanks: u8;
         loop {
             lives = rand::thread_rng().gen_range(1..=4);
             blanks = rand::thread_rng().gen_range(1..=4);
-            if (lives + blanks) > 2 && ((lives - blanks).abs() < 3) {
+            if (lives + blanks) > 2 && ((lives.saturating_sub(blanks)) < 3) {
                 break;
             }
         }
-
-        let mut live_plural: &str = "live";
-        if lives > 1 {
-            live_plural = "lives";
-        }
-        let mut blank_plural: &str = "shell";
-        if blanks > 1 {
-            blank_plural = "shells";
-        }
-        message_top!("----------------\n {lives} {live_plural} and {blanks} blank {blank_plural} are loaded into the shotgun.\n----------------\n");
+        show_shells(lives, blanks, 3);
         game_info.shells_vector = load_shells(lives, blanks);
         game_info.shell_index = 0;
         game_info.dealer_shell_knowledge_vec.clear();
@@ -322,17 +313,18 @@ fn play(game_info: &mut GameInfo) {
 }
 
 fn generate_items(len: usize, game_info: &mut GameInfo) -> Vec<ItemEnum> {
+    let mut rng = rand::thread_rng();
     let mut items_vec: Vec<ItemEnum> = Vec::new();
-    let saws: u8 = rand::thread_rng().gen_range(4..6);
-    let beers: u8 = rand::thread_rng().gen_range(4..7);
-    let cigs: u8 = rand::thread_rng().gen_range(4..8);
-    let mag_glass: u8 = rand::thread_rng().gen_range(4..7);
-    let handcuffs: u8 = rand::thread_rng().gen_range(4..5);
+    let saws: u8 = rng.gen_range(4..6);
+    let beers: u8 = rng.gen_range(4..7);
+    let cigs: u8 = rng.gen_range(4..8);
+    let mag_glass: u8 = rng.gen_range(4..7);
+    let handcuffs: u8 = rng.gen_range(4..5);
     if game_info.double_or_nothing {
-        let adren: u8 = rand::thread_rng().gen_range(4..6);
-        let burn_pho: u8 = rand::thread_rng().gen_range(4..7);
-        let invert: u8 = rand::thread_rng().gen_range(4..7);
-        let exp_med: u8 = rand::thread_rng().gen_range(4..8);
+        let adren: u8 = rng.gen_range(4..6);
+        let burn_pho: u8 = rng.gen_range(4..7);
+        let invert: u8 = rng.gen_range(4..7);
+        let exp_med: u8 = rng.gen_range(4..8);
         if game_info.double_or_nothing {
             for _ in 0..adren {
                 items_vec.push(ItemEnum::Adren);
@@ -365,7 +357,6 @@ fn generate_items(len: usize, game_info: &mut GameInfo) -> Vec<ItemEnum> {
         items_vec.push(ItemEnum::Handcuffs);
     }
     for _ in 0..40 {
-        let mut rng = rand::thread_rng();
         items_vec.as_mut_slice().shuffle(&mut rng);
     }
 
@@ -378,7 +369,7 @@ fn remove_item(picked_items_vec: &mut [ItemEnum; 8], index: usize) {
 }
 
 //loading the shotgun shells
-fn load_shells(lives: i8, blanks: i8) -> Vec<bool> {
+fn load_shells(lives: u8, blanks: u8) -> Vec<bool> {
     let mut shells: Vec<bool> = Vec::new();
     for _i in 0..blanks {
         shells.push(false);

@@ -1,14 +1,28 @@
 use crate::{cleanup, GameInfo, PlayerDealer, GAME_BEGUN, PREVIOUS_INDEX, STDIN};
 use crossterm::event::{Event, KeyCode, KeyModifiers};
 use once_cell::sync::Lazy;
+use rand::{seq::SliceRandom, thread_rng};
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style, Stylize},
     terminal::{Frame, Terminal},
-    widgets::{Block, List, ListItem, ListState},
+    widgets::{Block, List, ListItem, ListState, Paragraph},
 };
 use std::{io, sync::Mutex, thread, time::Duration};
+
+const LIVE_ROUND: &str = r"
+ __ 
+|##|
+|##|
+|##|
+****";
+const BLANK_ROUND: &str = r"
+ __ 
+|  |
+|  |
+|  |
+****";
 
 // Static lazy-initialized terminal instance
 pub static TERMINAL: Lazy<Mutex<Terminal<CrosstermBackend<io::Stdout>>>> = Lazy::new(|| {
@@ -419,7 +433,7 @@ pub fn get_input() -> String {
             );
         })
         .unwrap();
-    
+
     input[0].clone()
 }
 
@@ -455,4 +469,90 @@ fn get_name(current_text: String) -> (String, bool) {
     }
 
     (name, result)
+}
+
+pub fn show_shells(lives: u8, blanks: u8, stage: u8) {
+    let mut shell_lines = vec![String::new(); 6];
+
+    if stage == 3 {
+        let mut shell_vec  = Vec::new();
+        for _ in 0..lives {shell_vec.push("Live")};
+        for _ in 0..blanks {shell_vec.push("Blank")};
+        shell_vec.shuffle(&mut thread_rng());
+
+        for shell in shell_vec {
+            if shell == "Live" {
+                for (i, line) in LIVE_ROUND.split('\n').enumerate() {
+                    shell_lines[i].push_str(line);
+                    shell_lines[i].push(' '); // Adding a space
+                }
+            } else {
+                for (i, line) in BLANK_ROUND.split('\n').enumerate() {
+                    shell_lines[i].push_str(line);
+                    shell_lines[i].push(' '); // Adding a space
+                }
+            };
+            
+        }
+    } else {
+        for _ in 0..lives {
+            for (i, line) in LIVE_ROUND.split('\n').enumerate() {
+                shell_lines[i].push_str(line);
+                shell_lines[i].push(' '); // Adding a space
+            }
+        }
+
+        for _ in 0..blanks {
+            for (i, line) in BLANK_ROUND.split('\n').enumerate() {
+                shell_lines[i].push_str(line);
+                shell_lines[i].push(' '); // Adding a space
+            }
+        }
+    }
+    
+    let mut final_text = String::new();
+    for line in shell_lines {
+        final_text.push_str(&format!("{line}\n"));
+    }
+    let list = Paragraph::new(final_text)
+        .block(Block::bordered().title("Shells"))
+        .style(Style::new().white().on_black());
+    TERMINAL
+        .try_lock()
+        .unwrap()
+        .draw(|f: &mut Frame| {
+            let chunks = LAYOUT.try_lock().unwrap().split(f.size());
+            let shell_spot = Rect::new(
+                chunks[1].width / 2,
+                chunks[1].y,
+                chunks[1].width / 2,
+                chunks[1].height,
+            );
+
+            f.render_widget(list, shell_spot);
+            ui(
+                f,
+                &TOP_MESSAGES_STRING.try_lock().unwrap(),
+                Some(&STAT_MESSAGES_VEC.try_lock().unwrap()),
+                None,
+                None,
+            );
+        })
+        .unwrap();
+
+    thread::sleep(Duration::from_millis(3000));
+
+    TERMINAL
+        .try_lock()
+        .unwrap()
+        .draw(|f| {
+            ui(
+                f,
+                &TOP_MESSAGES_STRING.try_lock().unwrap(),
+                Some(&STAT_MESSAGES_VEC.try_lock().unwrap()),
+                Some(&PLAYER_INV.try_lock().unwrap()),
+                Some(&DEALER_INV.try_lock().unwrap()),
+            );
+        })
+        .unwrap();
 }
