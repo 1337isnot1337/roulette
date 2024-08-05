@@ -198,16 +198,21 @@ pub fn message_stats_func(game_info: &mut GameInfo) {
     } else {
         ""
     };
-
+    let mut lightning_deal = String::new();
+    let mut lightning_play = String::new();
+    for _ in 0..game_info.dealer_charges {
+        lightning_deal.push_str("🗲 ");
+    }
+    for _ in 0..game_info.player_charges {
+        lightning_play.push_str("🗲 ");
+    }
     // Update stat messages
     STAT_MESSAGES_VEC.try_lock().unwrap().push(format!(
-        "Turn {}. {turn_owner}'s turn. \n\nDealer Charges: {}/{} \nPlayer Charges: {}/{} \nShell Index: {} \nRound: {}
+        "Turn {}. {turn_owner}'s turn. \n\nDealer Charges: {} \nPlayer Charges: {} \nShell Index: {} \nRound: {}
         {double_or_nothing}{perfect}{debug_info}",
         game_info.current_turn,
-        game_info.dealer_charges,
-        game_info.dealer_charges_cap,
-        game_info.player_charges,
-        game_info.player_charges_cap,
+        lightning_deal,
+        lightning_play,
         game_info.shell_index,
         game_info.round,
     ));
@@ -478,9 +483,13 @@ pub fn show_shells(lives: u8, blanks: u8, stage: u8) {
     let mut shell_lines = vec![String::new(); 6];
 
     if stage == 3 {
-        let mut shell_vec  = Vec::new();
-        for _ in 0..lives {shell_vec.push("Live")};
-        for _ in 0..blanks {shell_vec.push("Blank")};
+        let mut shell_vec = Vec::new();
+        for _ in 0..lives {
+            shell_vec.push("Live");
+        }
+        for _ in 0..blanks {
+            shell_vec.push("Blank");
+        }
         shell_vec.shuffle(&mut thread_rng());
 
         for shell in shell_vec {
@@ -495,7 +504,6 @@ pub fn show_shells(lives: u8, blanks: u8, stage: u8) {
                     shell_lines[i].push(' '); // Adding a space
                 }
             };
-            
         }
     } else {
         for _ in 0..lives {
@@ -512,7 +520,7 @@ pub fn show_shells(lives: u8, blanks: u8, stage: u8) {
             }
         }
     }
-    
+
     let mut final_text = "These shells will be loaded into the shotgun. \n".to_owned();
     for line in shell_lines {
         final_text.push_str(&format!("{line}\n"));
@@ -543,7 +551,7 @@ pub fn show_shells(lives: u8, blanks: u8, stage: u8) {
         })
         .unwrap();
 
-    thread::sleep(Duration::from_millis(3000));
+    thread::sleep(Duration::from_millis(2000));
 
     TERMINAL
         .try_lock()

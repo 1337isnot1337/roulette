@@ -39,6 +39,7 @@ pub enum Selection {
     Play,
     Help,
     Credits,
+    TakePills,
 }
 impl fmt::Display for Selection {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -46,6 +47,7 @@ impl fmt::Display for Selection {
             Selection::Play => "Play",
             Selection::Help => "Help",
             Selection::Credits => "Credits",
+            Selection::TakePills => "Take the Pills",
         };
         write!(f, "{printable}")
     }
@@ -86,7 +88,7 @@ impl fmt::Display for ItemEnum {
         write!(f, "{printable}")
     }
 }
-
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GameInfo {
     pub dealer_charges: i8,
@@ -105,6 +107,7 @@ pub struct GameInfo {
     pub dealer_shell_knowledge_vec: Vec<Option<bool>>,
     pub round: u8,
     pub score_info: ScoreInfo,
+    pub has_won_the_game: bool,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScoreInfo {
@@ -184,6 +187,7 @@ fn main() {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 fn gameplay() {
     let args: Vec<String> = env::args().collect::<Vec<String>>()[1..].to_vec();
 
@@ -232,7 +236,6 @@ fn gameplay() {
     let current_turn: i32 = 1;
     let shell_index = 0;
     let dealer_shell_knowledge_vec: Vec<Option<bool>> = Vec::new();
-
     let mut game_info: GameInfo = GameInfo {
         //health related
         dealer_charges,
@@ -254,6 +257,7 @@ fn gameplay() {
         dealer_shell_knowledge_vec,
         round,
         score_info,
+        has_won_the_game: false,
     };
 
     message_stats_func(&mut game_info);
@@ -296,6 +300,12 @@ fn gameplay() {
         }
         Selection::Credits => credits(),
         Selection::Help => help(),
+        Selection::TakePills => {
+            message_top!(
+                "Over on the counter, you see an old prescription bottle.\nYou take one of the pills in it.\n"
+            );
+            game_info.has_won_the_game = true;
+        }
     }
 }
 
@@ -384,7 +394,7 @@ fn generate_items(len: usize, game_info: &mut GameInfo) -> Vec<ItemEnum> {
     let cigs: u8 = rng.gen_range(4..8);
     let mag_glass: u8 = rng.gen_range(4..7);
     let handcuffs: u8 = rng.gen_range(4..5);
-    if game_info.double_or_nothing {
+    if game_info.double_or_nothing  {
         let adren: u8 = rng.gen_range(4..6);
         let burn_pho: u8 = rng.gen_range(4..7);
         let invert: u8 = rng.gen_range(4..7);
@@ -455,6 +465,7 @@ fn load_shells(lives: u8, blanks: u8) -> Vec<bool> {
 }
 
 //check the lives
+#[allow(clippy::too_many_lines)]
 fn check_life(game_info: &mut GameInfo) -> bool {
     if game_info.player_charges < 1 || game_info.dealer_charges < 1 {
         match game_info.round {
@@ -479,6 +490,13 @@ fn check_life(game_info: &mut GameInfo) -> bool {
             2 => {
                 if game_info.dealer_charges < 1 {
                     message_top!("Round three begins.");
+                    thread::sleep(Duration::from_millis(1000));
+                    message_top!("Long last, we arrive at the final showdown.");
+                    thread::sleep(Duration::from_millis(1000));
+                    message_top!("No more defilibrators, no more blood transfusions.");
+                    thread::sleep(Duration::from_millis(1000));
+                    message_top!("Now, me and you, we are dancing on the edge of life and death.");
+                    thread::sleep(Duration::from_millis(1000));
                     game_info.round += 1;
                 }
                 if game_info.player_charges < 1 {
@@ -501,6 +519,7 @@ fn check_life(game_info: &mut GameInfo) -> bool {
                         PLAYER_NAME.try_lock().unwrap()
                     );
                     present_game_stats(game_info);
+                    game_info.has_won_the_game = true;
                     message_top!("\n\nStart a new game, if you wish. \n",);
                     play_audio("winner.ogg");
                 }
@@ -511,7 +530,7 @@ fn check_life(game_info: &mut GameInfo) -> bool {
                     );
                 }
                 message_top!("\nPlay Again?");
-                if dialogue(&["Continue", "Quit Game"], "Continue?", None, false) == 0 {
+                if dialogue(&["Play Again?", "Quit Game"], "Play Again?", None, false) == 0 {
                     gameplay();
                 } else {
                     cleanup();
@@ -631,7 +650,7 @@ fn display_liability() {
     let split_vec = include_str!("../txt_files/liability.txt").split('\n');
     for line in split_vec {
         message_top!("{line}");
-        thread::sleep(Duration::from_millis(50));
+        thread::sleep(Duration::from_millis(40));
     }
 }
 

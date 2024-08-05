@@ -180,7 +180,7 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
     } else {
         PlayerDealer::Dealer
     };
-    //true means dealer shoots you, false means dealer shoots itself
+    //true means dealer shoots you, false means dealer shoots themselves
     let mut extraturn = false;
     if dealer_minor_info.extra_turn_var == ExtraTurnVars::Handcuffed {
         extraturn = true;
@@ -202,7 +202,7 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
             }
         }
         PlayerDealer::Dealer => {
-            message_top!("The dealer points the gun at its face.");
+            message_top!("The dealer points the gun at their face.");
             thread::sleep(Duration::from_secs(1));
             if game_info.shells_vector[game_info.shell_index] {
                 turn_screen_red();

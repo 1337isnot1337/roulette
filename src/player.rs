@@ -26,7 +26,7 @@ pub fn turn(game_info: &mut GameInfo) -> (bool, bool) {
         extraturn = resolve_player_choice(choice, damage, game_info, cuffed);
 
         thread::sleep(Duration::from_secs(1));
-        let dead = check_life(game_info);
+        check_life(game_info);
         message_stats_func(game_info);
     }
 
