@@ -104,6 +104,15 @@ pub struct GameInfo {
     pub shell_index: usize,
     pub dealer_shell_knowledge_vec: Vec<Option<bool>>,
     pub round: u8,
+    pub score_info: ScoreInfo,
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScoreInfo {
+    pub shots_fir: u8,
+    pub shells_ejec: u8,
+    pub cigs_taken: u8,
+    pub beers: u8,
+    pub player_deaths: u8,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -209,6 +218,15 @@ fn gameplay() {
         process::exit(0)
     }
     play_audio("music/music_main_techno_techno.ogg");
+
+    let score_info = ScoreInfo {
+        shots_fir: 0,
+        shells_ejec: 0,
+        cigs_taken: 0,
+        beers: 0,
+        player_deaths: 0,
+    };
+
     let round = 1;
     let shells_vector: Vec<bool> = vec![];
     let current_turn: i32 = 1;
@@ -216,22 +234,28 @@ fn gameplay() {
     let dealer_shell_knowledge_vec: Vec<Option<bool>> = Vec::new();
 
     let mut game_info: GameInfo = GameInfo {
+        //health related
         dealer_charges,
         player_charges,
         dealer_charges_cap,
         player_charges_cap,
+        //turn owner
         turn_owner,
         player_inventory,
         dealer_inventory,
+        //flags
         perfect,
         double_or_nothing,
         debug,
+
         shells_vector,
         current_turn,
         shell_index,
         dealer_shell_knowledge_vec,
         round,
+        score_info,
     };
+
     message_stats_func(&mut game_info);
 
     enable_raw_mode().unwrap();
@@ -473,9 +497,11 @@ fn check_life(game_info: &mut GameInfo) -> bool {
             3 => {
                 if game_info.dealer_charges < 1 {
                     message_top!(
-                        "\n\nDealer has no lives left. {} wins!\n\nStart a new game, if you wish. \n",
+                        "\n\nDealer has no lives left. {} wins!",
                         PLAYER_NAME.try_lock().unwrap()
                     );
+                    present_game_stats(game_info);
+                    message_top!("\n\nStart a new game, if you wish. \n",);
                     play_audio("winner.ogg");
                 }
                 if game_info.player_charges < 1 {
@@ -607,4 +633,38 @@ fn display_liability() {
         message_top!("{line}");
         thread::sleep(Duration::from_millis(50));
     }
+}
+
+fn present_game_stats(game_info: &mut GameInfo) {
+    let kicked_doors: u8 = if game_info.score_info.player_deaths == 0 {
+        2
+    } else {
+        2 + (2 * game_info.score_info.player_deaths)
+    };
+    let cash: u32 = 70_000_u32
+        - u32::from(220 * game_info.score_info.cigs_taken)
+        - ((u32::from(game_info.score_info.beers) * 330_u32 * 3) / 2)
+        - (if game_info.score_info.player_deaths > 0 {
+            u32::from(kicked_doors)
+        } else {
+            0_u32
+        });
+    message_top!(
+        "
+    CONGRATULATIONS, {}!
+    SHOTS FIRED ........ {}
+    SHELLS EJECTED ..... {}
+    DOORS KICKED ....... {}
+    CIGARETTES SMOKED .. {}
+    ML OF BEER DRANK ... {}
+    TOTAL CASH: {} $
+    ",
+        PLAYER_NAME.try_lock().unwrap(),
+        game_info.score_info.shots_fir,
+        game_info.score_info.shells_ejec,
+        kicked_doors,
+        game_info.score_info.cigs_taken,
+        u32::from(game_info.score_info.beers) * 330_u32,
+        cash
+    );
 }

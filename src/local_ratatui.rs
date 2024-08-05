@@ -201,11 +201,13 @@ pub fn message_stats_func(game_info: &mut GameInfo) {
 
     // Update stat messages
     STAT_MESSAGES_VEC.try_lock().unwrap().push(format!(
-        "Turn {}. {turn_owner}'s turn. \n\nDealer Charges: {} \nPlayer Charges: {} \nShell Index: {} \nRound: {}
+        "Turn {}. {turn_owner}'s turn. \n\nDealer Charges: {}/{} \nPlayer Charges: {}/{} \nShell Index: {} \nRound: {}
         {double_or_nothing}{perfect}{debug_info}",
         game_info.current_turn,
         game_info.dealer_charges,
+        game_info.dealer_charges_cap,
         game_info.player_charges,
+        game_info.player_charges_cap,
         game_info.shell_index,
         game_info.round,
     ));

@@ -1,9 +1,9 @@
 use crate::local_ratatui::{dialogue, message_stats_func};
-use crate::{message_top_func, PREVIOUS_INDEX};
 use crate::{
     check_life, generate_items, message_top, play_audio, remove_item, turn_screen_red, GameInfo,
     ItemEnum, PlayerDealer,
 };
+use crate::{message_top_func, PREVIOUS_INDEX};
 use rand::Rng;
 use std::{thread, time::Duration};
 
@@ -41,19 +41,14 @@ fn match_item(
     mut cuffed: bool,
     adren_item: Option<ItemEnum>,
 ) -> (bool, bool, i8) {
-    
     'item_selection_loop: loop {
-        
         message_stats_func(game_info);
-        
+
         let item_type: ItemEnum = if adren_pick {
-            
             adren_pick = false;
             adren_item.unwrap()
         } else {
-            
             if empty_due_to_beer {
-                
                 break 'item_selection_loop;
             }
 
@@ -64,35 +59,33 @@ fn match_item(
                 true,
             );
             *PREVIOUS_INDEX.try_lock().unwrap() = selection;
-            
-            
+
             let result = game_info.player_inventory[selection];
             remove_item(&mut game_info.player_inventory, selection);
             result
         };
-        
-       
+
         message_stats_func(game_info);
-        
+
         match item_type {
             ItemEnum::Cigs => {
                 play_audio("player_use_cigarettes.ogg");
-                if game_info.player_charges == 3 {
-                    message_top!(
-                    "You light one of the cigs. Your head feels hazy. It doesn't seem to do much."
-                );
-                } else {
+                if game_info.player_charges_cap > game_info.player_charges {
                     message_top!("You light one of the cigs. Your head feels hazy, but you feel power coursing through your veins.");
                     game_info.player_charges += 1;
+                } else {
+                    message_top!(
+                    "You light one of the cigs. Your head feels hazy. It doesn't seem to do much.");
                 }
-                
+                game_info.score_info.cigs_taken+=1;
+
                 continue 'item_selection_loop;
             }
             ItemEnum::Saws => {
                 play_audio("player_use_handsaw.ogg");
                 message_top!("Shhk. You slice off the tip of the gun. It'll do 2 damage now.");
                 damage = 2;
-                
+
                 continue 'item_selection_loop;
             }
             ItemEnum::MagGlass => {
@@ -106,7 +99,7 @@ fn match_item(
                         "Upon closer inspection, you realize that there's a blank round loaded."
                     );
                 }
-                
+
                 continue 'item_selection_loop;
             }
             ItemEnum::Handcuffs => {
@@ -115,10 +108,12 @@ fn match_item(
                     "The dealer grabs the handcuffs from your outstretched hand, putting them on."
                 );
                 cuffed = true;
-                
+
                 continue 'item_selection_loop;
             }
             ItemEnum::Beers => {
+                game_info.score_info.shells_ejec += 1;
+                game_info.score_info.beers +=1;
                 play_audio("player_use_beer.ogg");
                 if (game_info.shells_vector.len() - 1) == game_info.shell_index {
                     empty_due_to_beer = true;
@@ -129,7 +124,7 @@ fn match_item(
                     message_top!("You give the shotgun a pump. A blank round drops out.");
                 };
                 game_info.shell_index += 1;
-                
+
                 continue 'item_selection_loop;
             }
             ItemEnum::Nothing => {}
@@ -141,13 +136,11 @@ fn match_item(
                     damage,
                     cuffed,
                 );
-                
+
                 continue 'item_selection_loop;
             }
         }
 
-        
-        
         break;
     }
     (empty_due_to_beer, cuffed, damage)
@@ -171,7 +164,7 @@ fn double_or_nothing_items(
                 Some(PlayerDealer::Dealer),
                 false,
             );
-            
+
             let stolen_item = game_info.dealer_inventory[sel_index];
             if stolen_item == ItemEnum::Adren {
                 message_top!("You can't grab the adrenaline.");
@@ -260,6 +253,8 @@ fn resolve_player_choice(
             if game_info.shells_vector[game_info.shell_index] {
                 turn_screen_red();
                 message_top!("You shot yourself.");
+                game_info.score_info.shots_fir += 1;
+                game_info.score_info.shells_ejec += 1;
 
                 game_info.player_charges -= damage;
             } else {
@@ -267,7 +262,7 @@ fn resolve_player_choice(
                 message_top!("click");
                 thread::sleep(Duration::from_secs(1));
                 message_top!("Extra turn for you.");
-
+                game_info.score_info.shells_ejec += 1;
                 extraturn = true;
             }
         }
@@ -278,11 +273,13 @@ fn resolve_player_choice(
                 turn_screen_red();
 
                 message_top!("You shot the dealer.");
-
+                game_info.score_info.shots_fir += 1;
+                game_info.score_info.shells_ejec += 1;
                 game_info.dealer_charges -= damage;
             } else {
                 play_audio("temp_gunshot_blank.wav");
                 message_top!("click");
+                game_info.score_info.shells_ejec += 1;
             }
         }
     }

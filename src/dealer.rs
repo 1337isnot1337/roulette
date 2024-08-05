@@ -54,7 +54,7 @@ fn dealer_item_logic(
     message_stats_func(game_info);
     'dealer_item_logic: loop {
         message_stats_func(game_info);
-        if game_info.dealer_inventory.contains(&ItemEnum::Cigs) & { game_info.dealer_charges < 3 } {
+        if game_info.dealer_inventory.contains(&ItemEnum::Cigs) & { game_info.dealer_charges_cap > game_info.dealer_charges } {
             item_use(ItemEnum::Cigs, game_info, &mut dealer_minor_info, false);
             play_audio("dealer_use_cigarettes.ogg");
 
@@ -193,10 +193,12 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
             if game_info.shells_vector[game_info.shell_index] {
                 turn_screen_red();
                 message_top!("Dealer shot you.");
+                game_info.score_info.shells_ejec += 1;
                 game_info.player_charges -= dealer_minor_info.damage;
             } else {
                 play_audio("temp_gunshot_blank.wav");
                 message_top!("click");
+                game_info.score_info.shells_ejec += 1;
             }
         }
         PlayerDealer::Dealer => {
@@ -204,12 +206,14 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
             thread::sleep(Duration::from_secs(1));
             if game_info.shells_vector[game_info.shell_index] {
                 turn_screen_red();
+                game_info.score_info.shells_ejec += 1;
                 message_top!("Dealer shot themselves.");
                 game_info.dealer_charges -= dealer_minor_info.damage;
             } else {
                 play_audio("temp_gunshot_blank.wav");
                 message_top!("click");
                 message_top!("Extra turn for dealer.");
+                game_info.score_info.shells_ejec += 1;
                 if dealer_minor_info.extra_turn_var != ExtraTurnVars::Handcuffed {
                     extraturn = true;
                 }
@@ -241,11 +245,12 @@ fn item_use(
 
     match item_type {
         ItemEnum::Cigs => {
-            if game_info.dealer_charges == 3 {
-                unreachable!()
-            } else {
+            if game_info.dealer_charges_cap > game_info.dealer_charges {
                 message_top!("The dealer lights one of the cigs.");
                 game_info.dealer_charges += 1;
+            } else {
+                
+                unreachable!()
             }
         }
         ItemEnum::Saws => {
@@ -260,6 +265,7 @@ fn item_use(
                 Some(game_info.shells_vector[game_info.shell_index]);
         }
         ItemEnum::Beers => {
+            game_info.score_info.shells_ejec += 1;
             if game_info.shells_vector[game_info.shell_index] {
                 message_top!("The dealer gives the shotgun a pump. A live round drops out.");
             } else {
