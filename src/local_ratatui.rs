@@ -201,12 +201,13 @@ pub fn message_stats_func(game_info: &mut GameInfo) {
 
     // Update stat messages
     STAT_MESSAGES_VEC.try_lock().unwrap().push(format!(
-        "Turn {}. {turn_owner}'s turn. \n\nDealer Health: {} \nPlayer Health: {} \nShell Index: {} 
+        "Turn {}. {turn_owner}'s turn. \n\nDealer Charges: {} \nPlayer Charges: {} \nShell Index: {} \nRound: {}
         {double_or_nothing}{perfect}{debug_info}",
         game_info.current_turn,
-        game_info.dealer_health,
-        game_info.player_health,
+        game_info.dealer_charges,
+        game_info.player_charges,
         game_info.shell_index,
+        game_info.round,
     ));
 
     // Update dealer and player inventories
@@ -510,7 +511,7 @@ pub fn show_shells(lives: u8, blanks: u8, stage: u8) {
         }
     }
     
-    let mut final_text = String::new();
+    let mut final_text = "These shells will be loaded into the shotgun. \n".to_owned();
     for line in shell_lines {
         final_text.push_str(&format!("{line}\n"));
     }

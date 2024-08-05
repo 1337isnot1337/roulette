@@ -26,7 +26,7 @@ pub fn turn(game_info: &mut GameInfo) -> (bool, bool) {
         extraturn = resolve_player_choice(choice, damage, game_info, cuffed);
 
         thread::sleep(Duration::from_secs(1));
-        check_life(game_info);
+        let dead = check_life(game_info);
         message_stats_func(game_info);
     }
 
@@ -77,13 +77,13 @@ fn match_item(
         match item_type {
             ItemEnum::Cigs => {
                 play_audio("player_use_cigarettes.ogg");
-                if game_info.player_health == 3 {
+                if game_info.player_charges == 3 {
                     message_top!(
                     "You light one of the cigs. Your head feels hazy. It doesn't seem to do much."
                 );
                 } else {
                     message_top!("You light one of the cigs. Your head feels hazy, but you feel power coursing through your veins.");
-                    game_info.player_health += 1;
+                    game_info.player_charges += 1;
                 }
                 
                 continue 'item_selection_loop;
@@ -226,14 +226,14 @@ fn double_or_nothing_items(
             let coinflip: bool = rand::thread_rng().gen();
 
             if coinflip {
-                if game_info.player_health < 3 {
-                    game_info.player_health += 2;
+                if game_info.player_charges < 3 {
+                    game_info.player_charges += 2;
                     message_top!("You feel energy coursing through you.");
                 } else {
                     message_top!("The pills don't do anything.");
                 }
             } else {
-                game_info.player_health -= 1;
+                game_info.player_charges -= 1;
                 message_top!("You choke and fall over.");
             }
         }
@@ -261,7 +261,7 @@ fn resolve_player_choice(
                 turn_screen_red();
                 message_top!("You shot yourself.");
 
-                game_info.player_health -= damage;
+                game_info.player_charges -= damage;
             } else {
                 play_audio("temp_gunshot_blank.wav");
                 message_top!("click");
@@ -279,7 +279,7 @@ fn resolve_player_choice(
 
                 message_top!("You shot the dealer.");
 
-                game_info.dealer_health -= damage;
+                game_info.dealer_charges -= damage;
             } else {
                 play_audio("temp_gunshot_blank.wav");
                 message_top!("click");
@@ -293,9 +293,13 @@ fn resolve_player_choice(
 
 pub fn pick_items(game_info: &mut GameInfo) {
     let items_vec = &mut generate_items(8, game_info);
-
+    let num_of_items: u8 = match game_info.round {
+        2 => 2,
+        3 => 4,
+        _ => unreachable!(),
+    };
     message_top!("Take your items.");
-    for item_num in 0..4 {
+    for item_num in 0..num_of_items {
         let item_updated = item_num + 1;
         match items_vec.first().unwrap() {
             ItemEnum::Cigs => play_audio("pick_up_cigarettes.ogg"),

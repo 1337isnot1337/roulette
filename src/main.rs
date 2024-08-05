@@ -89,8 +89,10 @@ impl fmt::Display for ItemEnum {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GameInfo {
-    pub dealer_health: i8,
-    pub player_health: i8,
+    pub dealer_charges: i8,
+    pub player_charges: i8,
+    pub dealer_charges_cap: i8,
+    pub player_charges_cap: i8,
     pub turn_owner: PlayerDealer,
     pub player_inventory: [ItemEnum; 8],
     pub dealer_inventory: [ItemEnum; 8],
@@ -101,6 +103,7 @@ pub struct GameInfo {
     pub current_turn: i32,
     pub shell_index: usize,
     pub dealer_shell_knowledge_vec: Vec<Option<bool>>,
+    pub round: u8,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -175,8 +178,10 @@ fn main() {
 fn gameplay() {
     let args: Vec<String> = env::args().collect::<Vec<String>>()[1..].to_vec();
 
-    let dealer_health: i8 = 3;
-    let player_health: i8 = 3;
+    let dealer_charges: i8 = 2;
+    let player_charges: i8 = 2;
+    let dealer_charges_cap: i8 = 2;
+    let player_charges_cap: i8 = 2;
     let turn_owner: PlayerDealer = PlayerDealer::Player;
     let player_inventory: [ItemEnum; 8] = [ItemEnum::Nothing; 8];
     let dealer_inventory: [ItemEnum; 8] = [ItemEnum::Nothing; 8];
@@ -204,14 +209,17 @@ fn gameplay() {
         process::exit(0)
     }
     play_audio("music/music_main_techno_techno.ogg");
+    let round = 1;
     let shells_vector: Vec<bool> = vec![];
     let current_turn: i32 = 1;
     let shell_index = 0;
     let dealer_shell_knowledge_vec: Vec<Option<bool>> = Vec::new();
 
     let mut game_info: GameInfo = GameInfo {
-        dealer_health,
-        player_health,
+        dealer_charges,
+        player_charges,
+        dealer_charges_cap,
+        player_charges_cap,
         turn_owner,
         player_inventory,
         dealer_inventory,
@@ -222,6 +230,7 @@ fn gameplay() {
         current_turn,
         shell_index,
         dealer_shell_knowledge_vec,
+        round,
     };
     message_stats_func(&mut game_info);
 
@@ -234,7 +243,29 @@ fn gameplay() {
             thread::sleep(Duration::from_millis(1200));
             display_liability();
             *PLAYER_NAME.try_lock().unwrap() = get_input();
-
+            (game_info.dealer_inventory, game_info.player_inventory) =
+                ([ItemEnum::Nothing; 8], [ItemEnum::Nothing; 8]);
+            match game_info.round {
+                1 => {
+                    game_info.dealer_charges = 2;
+                    game_info.player_charges = 2;
+                    game_info.dealer_charges_cap = 2;
+                    game_info.player_charges_cap = 2;
+                }
+                2 => {
+                    game_info.dealer_charges_cap = 4;
+                    game_info.player_charges_cap = 4;
+                    game_info.dealer_charges = 4;
+                    game_info.player_charges = 4;
+                }
+                3 => {
+                    game_info.dealer_charges = 5;
+                    game_info.player_charges = 5;
+                    game_info.dealer_charges_cap = 5;
+                    game_info.player_charges_cap = 5;
+                }
+                _ => unreachable!(),
+            }
             loop {
                 play(&mut game_info);
             }
@@ -245,14 +276,23 @@ fn gameplay() {
 }
 
 fn play(game_info: &mut GameInfo) {
-    (game_info.dealer_inventory, game_info.player_inventory) =
-        ([ItemEnum::Nothing; 8], [ItemEnum::Nothing; 8]);
-
     // this block ensures some of the variables used once are dropped fast
     {
-        pick_items(game_info);
+        if game_info.round > 1 {
+            pick_items(game_info);
+            game_info.dealer_inventory = picked_to_stored(
+                generate_items(
+                    match game_info.round {
+                        2 => 2,
+                        3 => 4,
+                        _ => unreachable!(),
+                    },
+                    game_info,
+                ),
+                game_info,
+            );
+        }
 
-        game_info.dealer_inventory = picked_to_stored(generate_items(4, game_info), game_info);
         let mut lives: u8;
         let mut blanks: u8;
         loop {
@@ -262,7 +302,7 @@ fn play(game_info: &mut GameInfo) {
                 break;
             }
         }
-        show_shells(lives, blanks, 3);
+        show_shells(lives, blanks, game_info.round);
         game_info.shells_vector = load_shells(lives, blanks);
         game_info.shell_index = 0;
         game_info.dealer_shell_knowledge_vec.clear();
@@ -391,28 +431,100 @@ fn load_shells(lives: u8, blanks: u8) -> Vec<bool> {
 }
 
 //check the lives
-fn check_life(game_info: &mut GameInfo) {
-    if game_info.player_health < 1 || game_info.dealer_health < 1 {
-        if game_info.player_health < 1 {
-            message_top!("\n\n{}, you have no lives left. Game over.", PLAYER_NAME.try_lock().unwrap());
+fn check_life(game_info: &mut GameInfo) -> bool {
+    if game_info.player_charges < 1 || game_info.dealer_charges < 1 {
+        match game_info.round {
+            1 => {
+                if game_info.dealer_charges < 1 {
+                    message_top!("Round two begins.");
+                    game_info.round += 1;
+                }
+                if game_info.player_charges < 1 {
+                    message_top!(
+                        "\n\n{}, you have no lives left. Game over.",
+                        PLAYER_NAME.try_lock().unwrap()
+                    );
+                    message_top!("\nPlay Again?");
+                    if dialogue(&["Play Again?", "Quit Game"], "Play Again?", None, false) == 0 {
+                        gameplay();
+                    } else {
+                        cleanup();
+                    }
+                }
+            }
+            2 => {
+                if game_info.dealer_charges < 1 {
+                    message_top!("Round three begins.");
+                    game_info.round += 1;
+                }
+                if game_info.player_charges < 1 {
+                    message_top!(
+                        "\n\n{}, you have no lives left. Game over.",
+                        PLAYER_NAME.try_lock().unwrap()
+                    );
+                    message_top!("\nPlay Again?");
+                    if dialogue(&["Play Again?", "Quit Game"], "Play Again?", None, false) == 0 {
+                        gameplay();
+                    } else {
+                        cleanup();
+                    }
+                }
+            }
+            3 => {
+                if game_info.dealer_charges < 1 {
+                    message_top!(
+                        "\n\nDealer has no lives left. {} wins!\n\nStart a new game, if you wish. \n",
+                        PLAYER_NAME.try_lock().unwrap()
+                    );
+                    play_audio("winner.ogg");
+                }
+                if game_info.player_charges < 1 {
+                    message_top!(
+                        "\n\n{}, you have no lives left. Game over.",
+                        PLAYER_NAME.try_lock().unwrap()
+                    );
+                }
+                message_top!("\nPlay Again?");
+                if dialogue(&["Continue", "Quit Game"], "Continue?", None, false) == 0 {
+                    gameplay();
+                } else {
+                    cleanup();
+                }
+            }
+            _ => {}
         }
-        if game_info.dealer_health < 1 {
-            message_top!(
-                "\n\nDealer has no lives left. {} wins!\n\nStart a new game, if you wish. \n", PLAYER_NAME.try_lock().unwrap()
-            );
-            play_audio("winner.ogg");
+        match game_info.round {
+            1 => {
+                game_info.dealer_charges = 2;
+                game_info.player_charges = 2;
+                game_info.dealer_charges_cap = 2;
+                game_info.player_charges_cap = 2;
+            }
+            2 => {
+                game_info.dealer_charges = 4;
+                game_info.player_charges = 4;
+                game_info.dealer_charges_cap = 4;
+                game_info.player_charges_cap = 4;
+            }
+            3 => {
+                game_info.dealer_charges = 5;
+                game_info.player_charges = 5;
+                game_info.dealer_charges_cap = 5;
+                game_info.player_charges_cap = 5;
+            }
+            _ => unreachable!(),
         }
-        message_top!("\n\nPlay Again?");
-        if dialogue(&["Continue", "Quit Game"], "Continue?", None, false) == 0 {
-            game_info.player_health = 3;
-            game_info.dealer_health = 3;
-            game_info.current_turn = 1;
-            game_info.shells_vector.clear();
-            gameplay();
-        } else {
-            cleanup();
-        }
+        game_info.current_turn = 1;
+        game_info.shells_vector.clear();
+        game_info.dealer_shell_knowledge_vec.clear();
+        game_info.shell_index = 0;
+        game_info.shells_vector.clear();
+        game_info.dealer_inventory = [ItemEnum::Nothing; 8];
+        game_info.player_inventory = [ItemEnum::Nothing; 8];
+        message_stats_func(game_info);
+        return true;
     }
+    false
 }
 
 fn play_audio(path: &'static str) {
@@ -490,11 +602,9 @@ fn cleanup() {
 }
 
 fn display_liability() {
-    let split_vec = include_str!("../txt_files/liability.txt")
-        .split('\n');
+    let split_vec = include_str!("../txt_files/liability.txt").split('\n');
     for line in split_vec {
         message_top!("{line}");
-        thread::sleep(Duration::from_millis(100));
+        thread::sleep(Duration::from_millis(50));
     }
-    
 }

@@ -54,7 +54,7 @@ fn dealer_item_logic(
     message_stats_func(game_info);
     'dealer_item_logic: loop {
         message_stats_func(game_info);
-        if game_info.dealer_inventory.contains(&ItemEnum::Cigs) & { game_info.dealer_health < 3 } {
+        if game_info.dealer_inventory.contains(&ItemEnum::Cigs) & { game_info.dealer_charges < 3 } {
             item_use(ItemEnum::Cigs, game_info, &mut dealer_minor_info, false);
             play_audio("dealer_use_cigarettes.ogg");
 
@@ -135,7 +135,7 @@ fn dealer_item_logic(
                 continue 'dealer_item_logic;
             }
             if game_info.dealer_inventory.contains(&ItemEnum::ExpMed)
-                && game_info.dealer_health == 2
+                && game_info.dealer_charges == 2
             {
                 item_use(ItemEnum::ExpMed, game_info, &mut dealer_minor_info, false);
                 play_audio("dealer_use_medicine.ogg");
@@ -193,7 +193,7 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
             if game_info.shells_vector[game_info.shell_index] {
                 turn_screen_red();
                 message_top!("Dealer shot you.");
-                game_info.player_health -= dealer_minor_info.damage;
+                game_info.player_charges -= dealer_minor_info.damage;
             } else {
                 play_audio("temp_gunshot_blank.wav");
                 message_top!("click");
@@ -205,7 +205,7 @@ pub fn turn(game_info: &mut GameInfo) -> bool {
             if game_info.shells_vector[game_info.shell_index] {
                 turn_screen_red();
                 message_top!("Dealer shot themselves.");
-                game_info.dealer_health -= dealer_minor_info.damage;
+                game_info.dealer_charges -= dealer_minor_info.damage;
             } else {
                 play_audio("temp_gunshot_blank.wav");
                 message_top!("click");
@@ -241,11 +241,11 @@ fn item_use(
 
     match item_type {
         ItemEnum::Cigs => {
-            if game_info.dealer_health == 3 {
+            if game_info.dealer_charges == 3 {
                 unreachable!()
             } else {
                 message_top!("The dealer lights one of the cigs.");
-                game_info.dealer_health += 1;
+                game_info.dealer_charges += 1;
             }
         }
         ItemEnum::Saws => {
@@ -326,10 +326,10 @@ fn item_use(
             message_top!("The dealer takes the expired medicine.");
             let coinflip: bool = rand::thread_rng().gen();
             if coinflip {
-                game_info.dealer_health += 2;
+                game_info.dealer_charges += 2;
                 message_top!("The dealer smiles.");
             } else {
-                game_info.dealer_health -= 1;
+                game_info.dealer_charges -= 1;
                 message_top!("The dealer chokes and falls over.");
             }
         }
@@ -347,6 +347,7 @@ pub fn picked_to_stored(
     mut picked_items_vec_dealer: Vec<ItemEnum>,
     game_info: &mut GameInfo,
 ) -> [ItemEnum; 8] {
+    
     message_top!("The dealer is picking items...");
     let mut index = 0;
     while !picked_items_vec_dealer.is_empty() {
