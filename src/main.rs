@@ -394,7 +394,7 @@ fn generate_items(len: usize, game_info: &mut GameInfo) -> Vec<ItemEnum> {
     let cigs: u8 = rng.gen_range(4..8);
     let mag_glass: u8 = rng.gen_range(4..7);
     let handcuffs: u8 = rng.gen_range(4..5);
-    if game_info.double_or_nothing  {
+    if game_info.double_or_nothing {
         let adren: u8 = rng.gen_range(4..6);
         let burn_pho: u8 = rng.gen_range(4..7);
         let invert: u8 = rng.gen_range(4..7);

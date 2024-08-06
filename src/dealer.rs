@@ -54,14 +54,23 @@ fn dealer_item_logic(
     message_stats_func(game_info);
     'dealer_item_logic: loop {
         message_stats_func(game_info);
-        if game_info.dealer_inventory.contains(&ItemEnum::Cigs) & { game_info.dealer_charges_cap > game_info.dealer_charges } {
+        if game_info.dealer_inventory.contains(&ItemEnum::Cigs) & {
+            game_info.dealer_charges_cap > game_info.dealer_charges
+        } {
             item_use(ItemEnum::Cigs, game_info, &mut dealer_minor_info, false);
             play_audio("dealer_use_cigarettes.ogg");
 
             continue 'dealer_item_logic;
         }
         if game_info.dealer_inventory.contains(&ItemEnum::MagGlass)
-            && !game_info.dealer_shell_knowledge_vec[game_info.shell_index].unwrap_or(false)
+            && !{
+                let cur_shell = game_info.dealer_shell_knowledge_vec[game_info.shell_index];
+                //if its some then true because we know the shell
+                match cur_shell {
+                    Some(true | false) => true,
+                    None => false,
+                } 
+            }
         {
             item_use(ItemEnum::MagGlass, game_info, &mut dealer_minor_info, false);
             play_audio("dealer_use_magnifier.ogg");
@@ -249,7 +258,6 @@ fn item_use(
                 message_top!("The dealer lights one of the cigs.");
                 game_info.dealer_charges += 1;
             } else {
-                
                 unreachable!()
             }
         }
@@ -353,7 +361,6 @@ pub fn picked_to_stored(
     mut picked_items_vec_dealer: Vec<ItemEnum>,
     game_info: &mut GameInfo,
 ) -> [ItemEnum; 8] {
-    
     message_top!("The dealer is picking items...");
     let mut index = 0;
     while !picked_items_vec_dealer.is_empty() {

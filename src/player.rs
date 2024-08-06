@@ -77,7 +77,7 @@ fn match_item(
                     message_top!(
                     "You light one of the cigs. Your head feels hazy. It doesn't seem to do much.");
                 }
-                game_info.score_info.cigs_taken+=1;
+                game_info.score_info.cigs_taken += 1;
 
                 continue 'item_selection_loop;
             }
@@ -113,7 +113,7 @@ fn match_item(
             }
             ItemEnum::Beers => {
                 game_info.score_info.shells_ejec += 1;
-                game_info.score_info.beers +=1;
+                game_info.score_info.beers += 1;
                 play_audio("player_use_beer.ogg");
                 if (game_info.shells_vector.len() - 1) == game_info.shell_index {
                     empty_due_to_beer = true;

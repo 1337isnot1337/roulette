@@ -390,7 +390,7 @@ pub fn dialogue<T: std::string::ToString>(
 
 pub fn get_input() -> String {
     let mut input: [String; 1] = [String::new()];
-    let mut to_break = false;
+    let mut to_break;
     loop {
         let display_input = &mut input;
         display_input[0].push('█');
@@ -414,7 +414,7 @@ pub fn get_input() -> String {
             })
             .unwrap();
         display_input[0].pop();
-        (input[0], to_break) = get_name(input[0].clone());
+        (input[0], to_break) = get_name(&mut input[0]);
         if to_break {
             break;
         }
@@ -445,8 +445,8 @@ pub fn get_input() -> String {
     input[0].clone()
 }
 
-fn get_name(current_text: String) -> (String, bool) {
-    let mut name = current_text;
+fn get_name(current_text: &mut String) -> (String, bool) {
+    let name = current_text;
     let mut result = false;
     if let Event::Key(key) = STDIN.get().unwrap().lock().unwrap().recv().unwrap() {
         // Handle CTRL+C to cleanup
@@ -476,7 +476,7 @@ fn get_name(current_text: String) -> (String, bool) {
         }
     }
 
-    (name, result)
+    ((*name).to_string(), result)
 }
 
 pub fn show_shells(lives: u8, blanks: u8, stage: u8) {
@@ -485,10 +485,10 @@ pub fn show_shells(lives: u8, blanks: u8, stage: u8) {
     if stage == 3 {
         let mut shell_vec = Vec::new();
         for _ in 0..lives {
-            shell_vec.push("Live");
+            shell_vec.resize(lives.into(), "Live");
         }
         for _ in 0..blanks {
-            shell_vec.push("Blank");
+            shell_vec.resize((lives + blanks).into(), "Blank");
         }
         shell_vec.shuffle(&mut thread_rng());
 
