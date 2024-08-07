@@ -12,22 +12,62 @@ pub fn turn(game_info: &mut GameInfo) -> (bool, bool) {
     message_stats_func(game_info);
     let mut cuffed = false;
     let mut damage: i8 = 1;
-    message_top!("Select items to use");
-    (empty_due_to_beer, cuffed, damage) =
-        match_item(false, game_info, empty_due_to_beer, damage, cuffed, None);
+    if game_info.round == 1 {
+        message_top!("Your turn.");
+    } else {
+        message_top!("Select items to use");
+    };
     let mut extraturn = false;
-    if !empty_due_to_beer {
-        message_stats_func(game_info);
-        let targets: [PlayerDealer; 2] = [PlayerDealer::Player, PlayerDealer::Dealer];
-        let selection = dialogue(&targets, "Who to shoot?", None, false);
-        message_stats_func(game_info);
+    'might_return: loop {
+        let (new_empty_due_to_beer, new_cuffed, new_damage, broke) =
+            match_item(false, game_info, empty_due_to_beer, damage, cuffed, None);
+        
+        //message_top!("Matched at least. New: beer {new_empty_due_to_beer}, cuff {new_cuffed}, damage {new_damage}.");
+        //message_top!(
+         //   "Matched at least. Old: beer {empty_due_to_beer}, cuff {cuffed}, damage {damage}."
+        //);
+        
+        if new_cuffed && !cuffed {
+           // message_top!("DEBUG INFO cuff");
+            cuffed = true;
+        }
+        if new_damage == 2 && damage == 1 {
+           // message_top!("DEBUG INFO damage");
+            damage = 2;
+        }
+        if new_empty_due_to_beer && !cuffed {
+           // message_top!("DEBUG INFO beer");
+            empty_due_to_beer = true;
+        }
+        if broke {
+            continue 'might_return;
+        }
 
-        let choice = targets[selection];
-        extraturn = resolve_player_choice(choice, damage, game_info, cuffed);
+        if !empty_due_to_beer {
+            message_stats_func(game_info);
+            let mut targets: [PlayerDealer; 2] = [PlayerDealer::Player, PlayerDealer::Dealer];
 
-        thread::sleep(Duration::from_secs(1));
-        check_life(game_info);
-        message_stats_func(game_info);
+            let selection: usize = if game_info.round == 1 {
+                dialogue(&mut targets, "Who to shoot?", None, false, false).unwrap()
+            } else {
+                match dialogue(&mut targets, "Who to shoot?", None, false, true) {
+                    Some(index) => index,
+                    None => continue 'might_return,
+                }
+                // add impl for none here
+            };
+
+            message_stats_func(game_info);
+
+            let choice = targets[selection];
+            extraturn = resolve_player_choice(choice, damage, game_info, cuffed);
+
+            thread::sleep(Duration::from_secs(1));
+            check_life(game_info);
+            message_stats_func(game_info);
+            break;
+        }
+        break;
     }
 
     (extraturn, empty_due_to_beer)
@@ -40,110 +80,147 @@ fn match_item(
     mut damage: i8,
     mut cuffed: bool,
     adren_item: Option<ItemEnum>,
-) -> (bool, bool, i8) {
+) -> (bool, bool, i8, bool) {
+    let mut broke = false;
+
     'item_selection_loop: loop {
         message_stats_func(game_info);
 
-        let item_type: ItemEnum = if adren_pick {
+        let shoot_or_pick_items: Option<ItemEnum> = if adren_pick {
             adren_pick = false;
-            adren_item.unwrap()
+            adren_item
         } else {
             if empty_due_to_beer {
                 break 'item_selection_loop;
             }
+            let might_just_shoot: Option<ItemEnum> = if game_info.round == 1 {
+                None
+            } else {
+                let selection_shoot = dialogue(
+                    &mut ["Use the gun", "Use items"],
+                    "Shoot or use inventory",
+                    Some(PlayerDealer::Player),
+                    false,
+                    false,
+                )
+                .unwrap();
 
-            let selection = dialogue(
-                &game_info.player_inventory,
-                "Your Inventory",
-                Some(PlayerDealer::Player),
-                true,
-            );
-            *PREVIOUS_INDEX.try_lock().unwrap() = selection;
+                if selection_shoot == 1 {
+                    let Some(selection) = dialogue(
+                        &mut game_info.player_inventory,
+                        "Your Inventory",
+                        Some(PlayerDealer::Player),
+                        true,
+                        true,
+                    ) else {
+                        broke = true;
+                        break 'item_selection_loop;
+                    };
+                    // add impl for none here
 
-            let result = game_info.player_inventory[selection];
-            remove_item(&mut game_info.player_inventory, selection);
-            result
+                    *PREVIOUS_INDEX.try_lock().unwrap() = selection;
+
+                    let result = game_info.player_inventory[selection];
+                    remove_item(&mut game_info.player_inventory, selection);
+                    Some(result)
+                } else {
+                    None
+                }
+            };
+
+            might_just_shoot
         };
 
         message_stats_func(game_info);
 
-        match item_type {
-            ItemEnum::Cigs => {
-                play_audio("player_use_cigarettes.ogg");
-                if game_info.player_charges_cap > game_info.player_charges {
-                    message_top!("You light one of the cigs. Your head feels hazy, but you feel power coursing through your veins.");
-                    game_info.player_charges += 1;
-                } else {
-                    message_top!(
-                    "You light one of the cigs. Your head feels hazy. It doesn't seem to do much.");
+        if let Some(item) = shoot_or_pick_items {
+            match item {
+                ItemEnum::Cigs => {
+                    play_audio("player_use_cigarettes.ogg");
+                    if game_info.player_charges_cap > game_info.player_charges {
+                        message_top!("You light one of the cigs. Your head feels hazy, but you feel power coursing through your veins.");
+                        game_info.player_charges += 1;
+                    } else {
+                        message_top!(
+                "You light one of the cigs. Your head feels hazy. It doesn't seem to do much.");
+                    }
+                    game_info.score_info.cigs_taken += 1;
+
+                    continue 'item_selection_loop;
                 }
-                game_info.score_info.cigs_taken += 1;
+                ItemEnum::Saws => {
+                    play_audio("player_use_handsaw.ogg");
+                    message_top!("Shhk. You slice off the tip of the gun. It'll do 2 damage now.");
+                    damage = 2;
 
-                continue 'item_selection_loop;
-            }
-            ItemEnum::Saws => {
-                play_audio("player_use_handsaw.ogg");
-                message_top!("Shhk. You slice off the tip of the gun. It'll do 2 damage now.");
-                damage = 2;
-
-                continue 'item_selection_loop;
-            }
-            ItemEnum::MagGlass => {
-                play_audio("player_use_magnifier.ogg");
-                if game_info.shells_vector[game_info.shell_index] {
-                    message_top!(
-                        "Upon closer inspection, you realize that there's a live round loaded."
-                    );
-                } else {
-                    message_top!(
-                        "Upon closer inspection, you realize that there's a blank round loaded."
-                    );
+                    continue 'item_selection_loop;
                 }
-
-                continue 'item_selection_loop;
-            }
-            ItemEnum::Handcuffs => {
-                play_audio("player_use_handcuffs.ogg");
-                message_top!(
-                    "The dealer grabs the handcuffs from your outstretched hand, putting them on."
+                ItemEnum::MagGlass => {
+                    play_audio("player_use_magnifier.ogg");
+                    if game_info.shells_vector[game_info.shell_index] {
+                        message_top!(
+                            "Upon closer inspection, you realize that there's a live round loaded."
+                        );
+                    } else {
+                        message_top!(
+                    "Upon closer inspection, you realize that there's a blank round loaded."
                 );
-                cuffed = true;
+                    }
 
-                continue 'item_selection_loop;
-            }
-            ItemEnum::Beers => {
-                game_info.score_info.shells_ejec += 1;
-                game_info.score_info.beers += 1;
-                play_audio("player_use_beer.ogg");
-                if (game_info.shells_vector.len() - 1) == game_info.shell_index {
-                    empty_due_to_beer = true;
+                    continue 'item_selection_loop;
                 }
-                if game_info.shells_vector[game_info.shell_index] {
-                    message_top!("You give the shotgun a pump. A live round drops out.");
-                } else {
-                    message_top!("You give the shotgun a pump. A blank round drops out.");
-                };
-                game_info.shell_index += 1;
+                ItemEnum::Handcuffs => {
+                    play_audio("player_use_handcuffs.ogg");
+                    message_top!(
+                "The dealer grabs the handcuffs from your outstretched hand, putting them on."
+            );
+                    cuffed = true;
 
-                continue 'item_selection_loop;
-            }
-            ItemEnum::Nothing => {}
-            _ => {
-                (empty_due_to_beer, cuffed, damage) = double_or_nothing_items(
-                    item_type,
-                    game_info,
-                    empty_due_to_beer,
-                    damage,
-                    cuffed,
-                );
+                    continue 'item_selection_loop;
+                }
+                ItemEnum::Beers => {
+                    game_info.score_info.shells_ejec += 1;
+                    game_info.score_info.beers += 1;
+                    play_audio("player_use_beer.ogg");
+                    if (game_info.shells_vector.len() - 1) == game_info.shell_index {
+                        empty_due_to_beer = true;
+                    }
+                    if game_info.shells_vector[game_info.shell_index] {
+                        message_top!("You give the shotgun a pump. A live round drops out.");
+                    } else {
+                        message_top!("You give the shotgun a pump. A blank round drops out.");
+                    };
+                    game_info.shell_index += 1;
 
-                continue 'item_selection_loop;
+                    continue 'item_selection_loop;
+                }
+                ItemEnum::Nothing => {}
+                double_item => {
+                    (empty_due_to_beer, cuffed, damage) = double_or_nothing_items(
+                        double_item,
+                        game_info,
+                        empty_due_to_beer,
+                        damage,
+                        cuffed,
+                    );
+
+                    continue 'item_selection_loop;
+                }
             }
+
+            break;
         }
-
+        empty_due_to_beer = false;
         break;
     }
-    (empty_due_to_beer, cuffed, damage)
+    //message_top!(
+      //  "beer {}, cuff {}, dam {}",
+        //empty_due_to_beer,
+        //cuffed,
+    //    damage
+    //);
+
+    (empty_due_to_beer, cuffed, damage, broke)
 }
 
 fn double_or_nothing_items(
@@ -159,11 +236,13 @@ fn double_or_nothing_items(
             play_audio("player_use_adrenaline.ogg");
             message_top!("You jam the rusty needle into your thigh.");
             let sel_index = dialogue(
-                &game_info.dealer_inventory,
+                &mut game_info.dealer_inventory,
                 "Pick one of the dealer's items",
                 Some(PlayerDealer::Dealer),
                 false,
-            );
+                false,
+            )
+            .unwrap();
 
             let stolen_item = game_info.dealer_inventory[sel_index];
             if stolen_item == ItemEnum::Adren {
@@ -172,7 +251,7 @@ fn double_or_nothing_items(
                 message_top!("You grab the {stolen_item}, and use it.");
 
                 remove_item(&mut game_info.dealer_inventory, sel_index);
-                (empty_due_to_beer, cuffed, damage) = match_item(
+                let (new_empty_due_to_beer, new_cuffed, new_damage, _) = match_item(
                     true,
                     game_info,
                     empty_due_to_beer,
@@ -180,6 +259,18 @@ fn double_or_nothing_items(
                     cuffed,
                     Some(stolen_item),
                 );
+                if new_cuffed && !cuffed {
+                    message_top!("DEBUG INFO cuff");
+                    cuffed = true;
+                }
+                if new_damage == 2 && damage == 1 {
+                    message_top!("DEBUG INFO damage");
+                    damage = 2;
+                }
+                if new_empty_due_to_beer && !cuffed {
+                    message_top!("DEBUG INFO beer");
+                    empty_due_to_beer = true;
+                }
             }
         }
         ItemEnum::BurnPho => {
@@ -315,11 +406,13 @@ pub fn pick_items(game_info: &mut GameInfo) {
             items_vec[0]
         );
         let selection = dialogue(
-            &game_info.player_inventory,
+            &mut game_info.player_inventory,
             "Your Inventory",
             Some(PlayerDealer::Player),
             true,
-        );
+            false,
+        )
+        .unwrap();
         *PREVIOUS_INDEX.try_lock().unwrap() = selection;
 
         match items_vec.first().unwrap() {

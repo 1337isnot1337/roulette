@@ -389,16 +389,16 @@ fn play(game_info: &mut GameInfo) {
 fn generate_items(len: usize, game_info: &mut GameInfo) -> Vec<ItemEnum> {
     let mut rng = rand::thread_rng();
     let mut items_vec: Vec<ItemEnum> = Vec::new();
-    let saws: u8 = rng.gen_range(4..6);
-    let beers: u8 = rng.gen_range(4..7);
-    let cigs: u8 = rng.gen_range(4..8);
-    let mag_glass: u8 = rng.gen_range(4..7);
-    let handcuffs: u8 = rng.gen_range(4..5);
+    let saws: u8 = rng.gen_range(2..3);
+    let beers: u8 = rng.gen_range(2..3);
+    let cigs: u8 = rng.gen_range(2..3);
+    let mag_glass: u8 = rng.gen_range(2..3);
+    let handcuffs: u8 = rng.gen_range(2..3);
     if game_info.double_or_nothing {
-        let adren: u8 = rng.gen_range(4..6);
-        let burn_pho: u8 = rng.gen_range(4..7);
-        let invert: u8 = rng.gen_range(4..7);
-        let exp_med: u8 = rng.gen_range(4..8);
+        let adren: u8 = rng.gen_range(2..3);
+        let burn_pho: u8 = rng.gen_range(2..3);
+        let invert: u8 = rng.gen_range(2..3);
+        let exp_med: u8 = rng.gen_range(2..3);
         if game_info.double_or_nothing {
             for _ in 0..adren {
                 items_vec.push(ItemEnum::Adren);
@@ -430,7 +430,7 @@ fn generate_items(len: usize, game_info: &mut GameInfo) -> Vec<ItemEnum> {
     for _ in 0..handcuffs {
         items_vec.push(ItemEnum::Handcuffs);
     }
-    for _ in 0..40 {
+    for _ in 0..5 {
         items_vec.as_mut_slice().shuffle(&mut rng);
     }
 
@@ -480,7 +480,14 @@ fn check_life(game_info: &mut GameInfo) -> bool {
                         PLAYER_NAME.try_lock().unwrap()
                     );
                     message_top!("\nPlay Again?");
-                    if dialogue(&["Play Again?", "Quit Game"], "Play Again?", None, false) == 0 {
+                    if dialogue(
+                        &mut ["Play Again?", "Quit Game"],
+                        "Play Again?",
+                        None,
+                        false,
+                        false,
+                    ) == Some(0)
+                    {
                         gameplay();
                     } else {
                         cleanup();
@@ -489,14 +496,15 @@ fn check_life(game_info: &mut GameInfo) -> bool {
             }
             2 => {
                 if game_info.dealer_charges < 1 {
+                    thread::sleep(Duration::from_millis(1000));
                     message_top!("Round three begins.");
-                    thread::sleep(Duration::from_millis(1000));
+                    thread::sleep(Duration::from_millis(2000));
                     message_top!("Long last, we arrive at the final showdown.");
-                    thread::sleep(Duration::from_millis(1000));
+                    thread::sleep(Duration::from_millis(2000));
                     message_top!("No more defilibrators, no more blood transfusions.");
-                    thread::sleep(Duration::from_millis(1000));
+                    thread::sleep(Duration::from_millis(2000));
                     message_top!("Now, me and you, we are dancing on the edge of life and death.");
-                    thread::sleep(Duration::from_millis(1000));
+                    thread::sleep(Duration::from_millis(3000));
                     game_info.round += 1;
                 }
                 if game_info.player_charges < 1 {
@@ -505,7 +513,14 @@ fn check_life(game_info: &mut GameInfo) -> bool {
                         PLAYER_NAME.try_lock().unwrap()
                     );
                     message_top!("\nPlay Again?");
-                    if dialogue(&["Play Again?", "Quit Game"], "Play Again?", None, false) == 0 {
+                    if dialogue(
+                        &mut ["Play Again?", "Quit Game"],
+                        "Play Again?",
+                        None,
+                        false,
+                        false,
+                    ) == Some(0)
+                    {
                         gameplay();
                     } else {
                         cleanup();
@@ -530,7 +545,14 @@ fn check_life(game_info: &mut GameInfo) -> bool {
                     );
                 }
                 message_top!("\nPlay Again?");
-                if dialogue(&["Play Again?", "Quit Game"], "Play Again?", None, false) == 0 {
+                if dialogue(
+                    &mut ["Play Again?", "Quit Game"],
+                    "Play Again?",
+                    None,
+                    false,
+                    false,
+                ) == Some(0)
+                {
                     gameplay();
                 } else {
                     cleanup();
@@ -612,21 +634,21 @@ fn credits() {
     let contents = include_str!("../txt_files/credits.txt");
     message_top!("{contents}");
     message_top!("\n\nSelect continue to continue...");
-    dialogue(&[&"Continue"], "Continue", None, false);
+    dialogue(&mut [&"Continue"], "Continue", None, false, false);
     message_top!("Continuing...");
 }
 fn help() {
     let contents = include_str!("../txt_files/help.txt");
     message_top!("{contents}");
     message_top!("\n\nSelect continue to continue...");
-    dialogue(&[&"Continue"], "Continue", None, false);
+    dialogue(&mut [&"Continue"], "Continue", None, false, false);
     message_top!("Continuing...");
 }
 
 fn play_screen() -> Selection {
-    let options_vec: [Selection; 3] = [Selection::Play, Selection::Help, Selection::Credits];
+    let mut options_vec: [Selection; 3] = [Selection::Play, Selection::Help, Selection::Credits];
     message_top!("Welcome to the game. \nWhat do you wish to do?");
-    let selection = dialogue(&options_vec, "Continue", None, false);
+    let selection = dialogue(&mut options_vec, "Continue", None, false, false).unwrap();
     options_vec[selection]
 }
 

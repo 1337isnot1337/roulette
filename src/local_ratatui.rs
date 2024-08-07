@@ -253,7 +253,10 @@ pub fn message_stats_func(game_info: &mut GameInfo) {
 }
 
 // Function to handle key events for item selection prompts
-pub fn key_event(selected_index: &mut usize, length: usize) -> bool {
+pub fn key_event(selected_index: &mut usize, mut length: usize, allow_back: bool) -> bool {
+    if allow_back {
+        length += 1;
+    }
     let mut result = false;
     if let Event::Key(key) = STDIN.get().unwrap().lock().unwrap().recv().unwrap() {
         // Handle CTRL+C to cleanup
@@ -278,20 +281,29 @@ pub fn key_event(selected_index: &mut usize, length: usize) -> bool {
     }
     result
 }
-
+#[allow(clippy::too_many_lines)]
 // Function to handle dialogue selection
 pub fn dialogue<T: std::string::ToString>(
-    options: &[T],
+    options: &mut [T],
     title: &str,
     dealer_or_player: Option<PlayerDealer>,
     keep_index: bool,
-) -> usize {
+    allow_back: bool,
+) -> Option<usize> {
     let mut selected_index: usize = 0;
     if keep_index {
         selected_index = *PREVIOUS_INDEX.try_lock().unwrap();
     }
+    let go_back_index = options.len() + 1;
 
-    let list = list!(options.iter().map(|i| ListItem::new(i.to_string())), title)
+    let mut these_items: Vec<ListItem> = options
+        .iter()
+        .map(|i| ListItem::new(i.to_string()))
+        .collect();
+    if allow_back {
+        these_items.push(ListItem::new("Return ⮐"));
+    }
+    let list = list!(these_items, title)
         .highlight_style(
             Style::new()
                 .add_modifier(Modifier::BOLD)
@@ -381,11 +393,15 @@ pub fn dialogue<T: std::string::ToString>(
                 f.render_stateful_widget(&list, render_rec, &mut liststate);
             })
             .unwrap();
-        if key_event(&mut selected_index, options.len()) {
+        if key_event(&mut selected_index, options.len(), allow_back) {
             break;
         }
     }
-    selected_index
+
+    if go_back_index - 1 == selected_index {
+        return None;
+    }
+    Some(selected_index)
 }
 
 pub fn get_input() -> String {

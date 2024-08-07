@@ -69,7 +69,7 @@ fn dealer_item_logic(
                 match cur_shell {
                     Some(true | false) => true,
                     None => false,
-                } 
+                }
             }
         {
             item_use(ItemEnum::MagGlass, game_info, &mut dealer_minor_info, false);
@@ -364,38 +364,38 @@ pub fn picked_to_stored(
     message_top!("The dealer is picking items...");
     let mut index = 0;
     while !picked_items_vec_dealer.is_empty() {
-        if game_info.dealer_inventory[index] == ItemEnum::Nothing
-            && !picked_items_vec_dealer.is_empty()
-        {
-            let item = picked_items_vec_dealer[0];
-            match item {
-                ItemEnum::Cigs => play_audio("pick_up_cigarettes.ogg"),
-                ItemEnum::Saws => play_audio("pick_up_metal.ogg"),
-                ItemEnum::MagGlass => play_audio("pick_up_magnifier.ogg"),
-                ItemEnum::Beers => play_audio("pick_up_beer.ogg"),
-                ItemEnum::Handcuffs => play_audio("pick_up_handcuffs.ogg"),
-                ItemEnum::Adren => play_audio("pick_up_adrenaline.ogg"),
-                ItemEnum::BurnPho => play_audio("pick_up_burner_phone.ogg"),
-                ItemEnum::Invert => play_audio("pick_up_inverter.ogg"),
-                ItemEnum::ExpMed => play_audio("pick_up_medicine.ogg"),
-                ItemEnum::Nothing => {}
-            }
+        if let Some(item) = game_info.dealer_inventory.get(index) {
+            if *item == ItemEnum::Nothing && !picked_items_vec_dealer.is_empty() {
+                let item = picked_items_vec_dealer[0];
+                match item {
+                    ItemEnum::Cigs => play_audio("pick_up_cigarettes.ogg"),
+                    ItemEnum::Saws => play_audio("pick_up_metal.ogg"),
+                    ItemEnum::MagGlass => play_audio("pick_up_magnifier.ogg"),
+                    ItemEnum::Beers => play_audio("pick_up_beer.ogg"),
+                    ItemEnum::Handcuffs => play_audio("pick_up_handcuffs.ogg"),
+                    ItemEnum::Adren => play_audio("pick_up_adrenaline.ogg"),
+                    ItemEnum::BurnPho => play_audio("pick_up_burner_phone.ogg"),
+                    ItemEnum::Invert => play_audio("pick_up_inverter.ogg"),
+                    ItemEnum::ExpMed => play_audio("pick_up_medicine.ogg"),
+                    ItemEnum::Nothing => {}
+                }
 
-            thread::sleep(Duration::from_millis(300));
-            match item {
-                ItemEnum::Cigs => play_audio("place_down_cigarettes.ogg"),
-                ItemEnum::Saws => play_audio("place_down_handsaw.ogg"),
-                ItemEnum::MagGlass => play_audio("place_down_magnifier.ogg"),
-                ItemEnum::Beers => play_audio("place_down_beer.ogg"),
-                ItemEnum::Handcuffs => play_audio("place_down_handcuffs.ogg"),
-                ItemEnum::Adren => play_audio("place_down_adrenaline.ogg"),
-                ItemEnum::BurnPho => play_audio("place_down_burner_phone.ogg"),
-                ItemEnum::Invert => play_audio("place_down_inverter.ogg"),
-                ItemEnum::ExpMed => play_audio("place_down_medicine.ogg"),
-                ItemEnum::Nothing => {}
+                thread::sleep(Duration::from_millis(300));
+                match item {
+                    ItemEnum::Cigs => play_audio("place_down_cigarettes.ogg"),
+                    ItemEnum::Saws => play_audio("place_down_handsaw.ogg"),
+                    ItemEnum::MagGlass => play_audio("place_down_magnifier.ogg"),
+                    ItemEnum::Beers => play_audio("place_down_beer.ogg"),
+                    ItemEnum::Handcuffs => play_audio("place_down_handcuffs.ogg"),
+                    ItemEnum::Adren => play_audio("place_down_adrenaline.ogg"),
+                    ItemEnum::BurnPho => play_audio("place_down_burner_phone.ogg"),
+                    ItemEnum::Invert => play_audio("place_down_inverter.ogg"),
+                    ItemEnum::ExpMed => play_audio("place_down_medicine.ogg"),
+                    ItemEnum::Nothing => {}
+                }
+                game_info.dealer_inventory[index] = picked_items_vec_dealer.remove(0);
             }
-            game_info.dealer_inventory[index] = picked_items_vec_dealer.remove(0);
-        }
+        };
 
         message_stats_func(game_info);
         index += 1;
