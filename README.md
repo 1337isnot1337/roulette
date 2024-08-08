@@ -32,7 +32,7 @@ run with the --double flag to try out the (not finished) double or nothing beta 
 
 Installation:
 
-Linux:
+Linux/MacOS:
 
 Clone the repository:
 
@@ -40,11 +40,11 @@ Clone the repository:
 
 `cd roulette`
 
-`cp binaries/roulette .`
+`cp binaries/roulette .` OR FOR MACOS `cp binaries/roulette_apple`
 
 then just use 
 
-`./roulette`
+`./roulette` OR FOR MACOS `./roulette_apple`
 
 to play!
 

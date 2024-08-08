@@ -2,7 +2,8 @@
 linker = "gcc"
 
 [target.x86_64-apple-darwin]
-linker = "clang"
+linker = "o64-clang"
+ar = "x86_64-apple-darwin-ar"
 
 [target.x86_64-pc-windows-gnu]
 linker = "x86_64-w64-mingw32-gcc"
