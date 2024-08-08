@@ -40,7 +40,7 @@ Clone the repository:
 
 `cd roulette`
 
-`cp binaries/roulette .` OR FOR MACOS `cp binaries/roulette_apple`
+`cp binaries/roulette .` OR FOR MACOS `cp binaries/roulette_apple .`
 
 then just use 
 
