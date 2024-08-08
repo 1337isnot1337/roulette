@@ -30,4 +30,43 @@ Bonus Features:
 run with the --perfect flag and the dealer will always know the current shell and play accordingly
 run with the --double flag to try out the (not finished) double or nothing beta with some of the items!
 
+Installation:
+
+Linux:
+
+Clone the repository:
+
+`git clone https://github.com/1337isnot1337/roulette`
+
+`cd roulette`
+
+`cp binaries/roulette .`
+
+then just use 
+
+`./roulette`
+
+to play!
+
+
+Windows:
+
+Clone the repository:
+
+`git clone https://github.com/1337isnot1337/roulette`
+
+`cd roulette`
+
+`copy binaries\roulette.exe .`
+
+then just use 
+
+`.\roulette.exe`
+
+to play!
+
+
+
+
+
 The creator and distributer of the code shall not be held responsible for any damage or issues caused by it. 
