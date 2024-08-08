@@ -21,22 +21,22 @@ pub fn turn(game_info: &mut GameInfo) -> (bool, bool) {
     'might_return: loop {
         let (new_empty_due_to_beer, new_cuffed, new_damage, broke) =
             match_item(false, game_info, empty_due_to_beer, damage, cuffed, None);
-        
+
         //message_top!("Matched at least. New: beer {new_empty_due_to_beer}, cuff {new_cuffed}, damage {new_damage}.");
         //message_top!(
-         //   "Matched at least. Old: beer {empty_due_to_beer}, cuff {cuffed}, damage {damage}."
+        //   "Matched at least. Old: beer {empty_due_to_beer}, cuff {cuffed}, damage {damage}."
         //);
-        
+
         if new_cuffed && !cuffed {
-           // message_top!("DEBUG INFO cuff");
+            // message_top!("DEBUG INFO cuff");
             cuffed = true;
         }
         if new_damage == 2 && damage == 1 {
-           // message_top!("DEBUG INFO damage");
+            // message_top!("DEBUG INFO damage");
             damage = 2;
         }
         if new_empty_due_to_beer && !cuffed {
-           // message_top!("DEBUG INFO beer");
+            // message_top!("DEBUG INFO beer");
             empty_due_to_beer = true;
         }
         if broke {
@@ -214,9 +214,9 @@ fn match_item(
         break;
     }
     //message_top!(
-      //  "beer {}, cuff {}, dam {}",
-        //empty_due_to_beer,
-        //cuffed,
+    //  "beer {}, cuff {}, dam {}",
+    //empty_due_to_beer,
+    //cuffed,
     //    damage
     //);
 
